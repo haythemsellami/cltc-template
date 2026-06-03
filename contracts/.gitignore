@@ -1,0 +1,7 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# deps are git submodules (see .gitmodules); keep the tree clean of build noise
+docs/

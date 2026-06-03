@@ -1,0 +1,27 @@
+{
+  "name": "cltc-market-making",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Competition market-making bot: deploy + fund + register a CompetitionPropAMM venue, then quote off the organizer's live WebSocket feed.",
+  "scripts": {
+    "start": "tsx src/run.ts",
+    "market-make": "tsx src/run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx test/*.test.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "viem": "^2.38.3",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

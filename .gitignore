@@ -1,0 +1,11 @@
+# secrets — never commit
+.env
+*.key
+
+# node
+node_modules/
+
+# foundry build output
+contracts/out/
+contracts/cache/
+contracts/broadcast/
