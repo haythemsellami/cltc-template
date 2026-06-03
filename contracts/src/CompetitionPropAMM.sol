@@ -9,15 +9,17 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IPropAMMPeriphery} from "./interfaces/IPropAMMPeriphery.sol";
 
 /// @title CompetitionPropAMM
-/// @notice The reference market-making venue you deploy for the competition. It holds your CASH/ASSET
-///         inventory and pays swaps out of its own balance.
-/// @dev THIS CONTRACT IS THE COMPETITION SURFACE — do not modify it; modifying the venue is out of
-///      scope and a modified venue will be rejected. You compete entirely OFF-CHAIN: the only lever
-///      is `updatePrice(fairPrice, validUntil)`, which you call from the market-making bot in
-///      ../market-making. The venue fills every swap at exactly `fairPrice` (WAD CASH per ASSET) —
-///      there is no spread, no trade-size cap, and no inventory band. Your edge is quoting a better
-///      price than rivals and keeping it fresh; a swap the venue can't cover simply reverts. PnL is
-///      scored off-chain from your (wallet + venue) token balances marked at the official feed price.
+/// @notice A reference market-making venue for the competition — it works out of the box and is yours
+///         to improve. It holds your CASH/ASSET inventory and pays swaps out of its own balance.
+/// @dev THIS IS A STARTING POINT, NOT A FIXED RULE. Deploy it as-is, or change anything: the pricing
+///      curve, a spread/skew, the fill logic, inventory management, the expiry policy (or no expiry).
+///      The ONLY hard requirement is that your venue keeps implementing `IPropAMMPeriphery` so the
+///      organizer's Monoper router can call `getAmountOut`/`swap` and route flow to it, and that you
+///      register it. As shipped: a quote is a single `fairPrice` (WAD CASH per ASSET) valid until
+///      `validUntil`, every swap fills at exactly that price (no spread, no size cap, no inventory
+///      band), and a fill the venue can't cover reverts. The off-chain bot in ../market-making decides
+///      what price to publish and when. PnL is scored off-chain from your (wallet + venue) token
+///      balances marked at the official feed price, minus the gas you spend — that is the only rule.
 contract CompetitionPropAMM is IPropAMMPeriphery, Ownable {
     using SafeERC20 for IERC20;
 

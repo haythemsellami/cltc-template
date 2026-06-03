@@ -1,11 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-//  YOUR STRATEGY LIVES HERE.  This is the one file you're meant to edit.
+//  YOUR OFF-CHAIN PRICING LIVES HERE — the easiest place to start adding an edge.
+//  (You can also customize the on-chain venue itself in ../contracts — both surfaces count.)
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //
 //  Every quote cycle the bot calls `decideFairPrice(tick)` and pushes the result on-chain via
-//  `updatePrice(fairPrice, validUntil)`. The venue then fills EVERY swap at exactly that price —
-//  there is no spread. The off-chain scorer marks your CASH + ASSET inventory at the official feed
-//  price, so your PnL is driven entirely by what price you quote relative to the market:
+//  `updatePrice(fairPrice, validUntil)`. With the reference venue, that price is the single price
+//  every swap fills at (no spread). The off-chain scorer marks your CASH + ASSET inventory at the
+//  official feed price, so your PnL is driven by what price you quote relative to the market:
 //
 //    • quote ABOVE the feed  → you sell ASSET dear / buy it cheap, but informed takers pick you off
 //    • quote BELOW the feed  → you fill more flow, but give up edge

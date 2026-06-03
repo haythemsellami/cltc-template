@@ -1,19 +1,22 @@
 # contracts/
 
-The on-chain side of your competition entry: the **`CompetitionPropAMM`** venue you deploy, plus the
-`IPropAMMPeriphery` interface the organizer's router speaks.
+The on-chain side of your competition entry: the **`CompetitionPropAMM`** reference venue you deploy,
+plus the `IPropAMMPeriphery` interface the organizer's router speaks.
 
-> **You compete off-chain.** Do **not** modify `CompetitionPropAMM.sol` — a modified venue is out of
-> scope and will be rejected. Your only on-chain lever is `updatePrice(fairPrice, validUntil)`, which
-> the bot in [`../market-making`](../market-making) calls for you. Read the contract to understand
-> exactly how you're quoted and filled, then put your effort into your pricing strategy.
+> **This is a starting point, not a fixed rule.** `CompetitionPropAMM` works out of the box, but the
+> venue is fair game to improve — your own pricing curve, spread/skew, fill logic, inventory rules,
+> expiry policy, whatever scores better. The **one hard requirement** is that your venue keeps
+> implementing **`IPropAMMPeriphery`** (so the organizer's `Monoper` router can call `getAmountOut` /
+> `swap` and route flow to it) and that you register it. Read the reference to see how it's quoted and
+> filled, then change as much or as little as you like — both the contract and the bot are surfaces to
+> compete on.
 
 ## Layout
 
 ```
 src/
-  CompetitionPropAMM.sol          # the venue you deploy (fills every swap at your fairPrice)
-  interfaces/IPropAMMPeriphery.sol # the router <-> venue interface (don't touch)
+  CompetitionPropAMM.sol          # the reference venue you deploy — customize it freely
+  interfaces/IPropAMMPeriphery.sol # the router <-> venue interface — keep implementing this
 script/DeployVenue.s.sol          # optional manual deploy (the bot deploys for you by default)
 test/CompetitionPropAMM.t.sol     # a starting test suite — extend it
 ```
@@ -32,18 +35,23 @@ forge test               # 6 passing
 If you cloned without submodules, `forge install` pulls them. The pinned versions are
 `openzeppelin-contracts@v5.6.1` and `forge-std@v1.16.1`.
 
-## How the venue works
+## How the reference venue works
+
+This is how `CompetitionPropAMM` behaves as shipped — each of these is a design choice you can change.
 
 - **Quote:** `QuoteState { uint256 fairPrice; uint64 validUntil; }`. `fairPrice` is WAD-scaled CASH
   per ASSET (1e18 = 1.0), the same scale as the market feed. `validUntil` is an absolute unix
-  timestamp — past it, the quote is expired and nothing fills.
+  timestamp — past it, the quote is expired and nothing fills. (Want quotes that never expire, or a
+  different curve? Change it.)
 - **Fills:** every swap executes at exactly `fairPrice` — `CASH→ASSET` divides by it, `ASSET→CASH`
   multiplies by it. **No spread, no size cap, no inventory band.** The venue pays out of its own
-  balance; a fill it can't cover just reverts.
-- **Control:** `updatePrice(fairPrice, validUntil)` (owner only) is the whole strategy surface. It
-  runs no checks and always emits `PriceUpdated` — that event is the canonical re-quote signal the
-  organizer's scorer watches.
+  balance; a fill it can't cover just reverts. (Add your own spread/skew or inventory rules here.)
+- **Control:** `updatePrice(fairPrice, validUntil)` (owner only) is how the bot re-prices. It runs no
+  checks and always emits `PriceUpdated` — a handy re-quote signal.
 - **Withdraw:** `withdraw(token, to, amount)` (owner only) pulls inventory back out, e.g. between rounds.
+
+Whatever you change, keep implementing `IPropAMMPeriphery` and register the venue — that's all the
+router needs to route flow to you.
 
 ## Deploy
 

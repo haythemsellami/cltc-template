@@ -4,8 +4,9 @@ The bot that runs your competition entry end-to-end: it resolves the active roun
 registers your `CompetitionPropAMM` venue, then **quotes off the organizer's live WebSocket feed** —
 re-pricing via `updatePrice(fairPrice, validUntil)` on a cadence and whenever the market moves.
 
-**Your edge lives in [`src/strategy.ts`](src/strategy.ts)** — one function, `decideFairPrice(tick)`.
-The default quotes flat at the feed; that's the file to make your own.
+**The easiest place to start adding an edge is [`src/strategy.ts`](src/strategy.ts)** — one function,
+`decideFairPrice(tick)`. The default quotes flat at the feed. (The venue contract in
+[`../contracts`](../contracts) is also yours to customize — both surfaces count.)
 
 ## Setup
 
