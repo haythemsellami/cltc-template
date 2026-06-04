@@ -6,7 +6,7 @@ import { accountFromKey, createReadClient, createWalletClientFor, generatePrivat
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
 import { computeFundingRequirement, readBalances, waitForFunding } from "./funding.js";
-import { fetchRoundContext } from "./manifest.js";
+import { fetchRoundContext, sameRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
 import type { Hex, QuoterState } from "./types.js";
@@ -83,13 +83,16 @@ export async function run(cfg: BotConfig): Promise<void> {
 
   // ── round context ──────────────────────────────────────────────────────────────────────────
   banner("Resolving the active round");
-  const ctx = await fetchRoundContext(cfg.operatorApiUrl);
-  log(`round #${ctx.round}`);
-  log(`  registry : ${ctx.registry}`);
-  log(`  monoper  : ${ctx.monoper}`);
-  log(`  CASH     : ${ctx.cashToken}`);
-  log(`  ASSET    : ${ctx.assetToken}`);
-  log(`  initial  : ${fmt(ctx.initialCash)} CASH + ${fmt(ctx.initialAsset)} ASSET per maker (recommended)`);
+  let ctx = await fetchRoundContext(cfg.operatorApiUrl);
+  const printCtx = (): void => {
+    log(`round #${ctx.round}`);
+    log(`  registry : ${ctx.registry}`);
+    log(`  monoper  : ${ctx.monoper}`);
+    log(`  CASH     : ${ctx.cashToken}`);
+    log(`  ASSET    : ${ctx.assetToken}`);
+    log(`  initial  : ${fmt(ctx.initialCash)} CASH + ${fmt(ctx.initialAsset)} ASSET per maker (recommended)`);
+  };
+  printCtx();
 
   // Shared mutable run state.
   const state: QuoterState = { lastFeedPriceWad: null, lastQuoteMs: null, quoteCount: 0 };
@@ -97,6 +100,7 @@ export async function run(cfg: BotConfig): Promise<void> {
   let venue: Hex | null = null;
   let deployBlock = 0n;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let registryWatch: ReturnType<typeof setInterval> | null = null;
   let stopped = false;
   let inFlight = false;
 
@@ -132,6 +136,9 @@ export async function run(cfg: BotConfig): Promise<void> {
     stopped = true;
     if (timer) {
       clearInterval(timer);
+    }
+    if (registryWatch) {
+      clearInterval(registryWatch);
     }
     banner(`Shutting down (${reason})`);
     feed.stop();
@@ -180,8 +187,20 @@ export async function run(cfg: BotConfig): Promise<void> {
   } else {
     // ── funding gate ───────────────────────────────────────────────────────────────────────
     banner("Funding gate");
-    const req = computeFundingRequirement(ctx, cfg.monForGasWei);
-    await waitForFunding({ client, address, ctx, req, log, assumeFunded: cfg.assumeFunded });
+    // The gate can outlast an organizer redeploy (fresh Registry/Monoper, or a new round). Re-resolve
+    // the manifest after the wait and re-gate if the context changed under us — otherwise we would
+    // deploy/fund/register against a registry that no longer exists in the manifest.
+    for (;;) {
+      const req = computeFundingRequirement(ctx, cfg.monForGasWei);
+      await waitForFunding({ client, address, ctx, req, log, assumeFunded: cfg.assumeFunded });
+      const fresh = await fetchRoundContext(cfg.operatorApiUrl);
+      if (sameRoundContext(ctx, fresh)) {
+        break;
+      }
+      log("organizer redeployed while we waited — refreshing the round context:");
+      ctx = fresh;
+      printCtx();
+    }
 
     // ── deploy ────────────────────────────────────────────────────────────────────────────
     banner("Deploying your CompetitionPropAMM venue");
@@ -262,4 +281,40 @@ export async function run(cfg: BotConfig): Promise<void> {
   }
 
   timer = setInterval(() => void maybeQuote(), 1_000);
+
+  // ── registry watch: self-heal across organizer redeploys ───────────────────────────────────
+  // If the organizer resets the competition mid-run (fresh Registry/Monoper), this maker's
+  // registration vanishes with the old registry and it silently stops receiving flow. Poll the
+  // manifest and re-register the venue on the new registry — or tell the operator to restart the
+  // bot when the round's token pair changed (this venue holds the old pair).
+  let watchBusy = false;
+  registryWatch = setInterval(() => {
+    if (stopped || watchBusy) {
+      return;
+    }
+    watchBusy = true;
+    void (async () => {
+      try {
+        const fresh = await fetchRoundContext(cfg.operatorApiUrl);
+        if (sameRoundContext(ctx, fresh)) {
+          return;
+        }
+        log(`organizer redeployed (registry ${ctx.registry} → ${fresh.registry}) — refreshing…`);
+        const pairChanged =
+          fresh.cashToken.toLowerCase() !== ctx.cashToken.toLowerCase() ||
+          fresh.assetToken.toLowerCase() !== ctx.assetToken.toLowerCase();
+        ctx = fresh;
+        if (pairChanged) {
+          log("→ the round's token pair changed — this venue trades the OLD pair. Restart the bot to deploy a venue for the new round.");
+          return;
+        }
+        await registerVenue(wallet, client, fresh.registry, venue!);
+        log("re-registered on the new registry ✓");
+      } catch (error) {
+        log(`registry watch: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        watchBusy = false;
+      }
+    })();
+  }, 30_000);
 }

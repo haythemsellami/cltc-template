@@ -49,3 +49,18 @@ export async function fetchRoundContext(operatorApiUrl: string): Promise<RoundCo
     initialAsset: BigInt(round.initialAsset),
   };
 }
+
+/**
+ * Same deployment + round? Used to detect an organizer redeploy (competition reset) that happened
+ * while the bot was waiting or running — addresses compared case-insensitively.
+ */
+export function sameRoundContext(a: RoundContext, b: RoundContext): boolean {
+  const eq = (x: string, y: string): boolean => x.toLowerCase() === y.toLowerCase();
+  return (
+    a.round === b.round &&
+    eq(a.registry, b.registry) &&
+    eq(a.monoper, b.monoper) &&
+    eq(a.cashToken, b.cashToken) &&
+    eq(a.assetToken, b.assetToken)
+  );
+}

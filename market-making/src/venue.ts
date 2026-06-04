@@ -24,6 +24,16 @@ export interface DeployedVenue {
   blockNumber: bigint;
 }
 
+/**
+ * Throw if a mined tx actually reverted — `waitForTransactionReceipt` resolves either way, so
+ * without this a reverted register/fund would be reported as success and fail silently downstream.
+ */
+function assertSuccess(receipt: { status: string }, what: string): void {
+  if (receipt.status !== "success") {
+    throw new Error(`${what} transaction reverted on-chain`);
+  }
+}
+
 /** Deploy a CompetitionPropAMM from the Foundry build bytecode and return its address + deploy block. */
 export async function deployVenue(
   wallet: WalletClient,
@@ -38,6 +48,7 @@ export async function deployVenue(
     chain: wallet.chain,
   });
   const receipt = await client.waitForTransactionReceipt({ hash });
+  assertSuccess(receipt, "venue deploy");
   if (!receipt.contractAddress) {
     throw new Error("venue deploy mined but produced no contract address");
   }
@@ -81,7 +92,7 @@ export async function fundVenue(
       account: wallet.account!,
       chain: wallet.chain,
     });
-    await client.waitForTransactionReceipt({ hash });
+    assertSuccess(await client.waitForTransactionReceipt({ hash }), "inventory transfer");
   }
   return { cashMoved, assetMoved };
 }
@@ -101,7 +112,7 @@ export async function registerVenue(
     account: wallet.account!,
     chain: wallet.chain,
   });
-  await client.waitForTransactionReceipt({ hash });
+  assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerVenue");
   return hash;
 }
 
@@ -121,7 +132,7 @@ export async function pushQuote(
     account: wallet.account!,
     chain: wallet.chain,
   });
-  await client.waitForTransactionReceipt({ hash });
+  assertSuccess(await client.waitForTransactionReceipt({ hash }), "updatePrice");
   return hash;
 }
 
@@ -151,7 +162,7 @@ export async function withdrawAll(
       account: wallet.account!,
       chain: wallet.chain,
     });
-    await client.waitForTransactionReceipt({ hash });
+    assertSuccess(await client.waitForTransactionReceipt({ hash }), "withdraw");
   }
 }
 
