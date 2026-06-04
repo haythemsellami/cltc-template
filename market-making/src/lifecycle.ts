@@ -14,6 +14,7 @@ import {
   buildVenueConstructorArgs,
   countSwaps,
   deployVenue,
+  ensureMarketMakerRegistered,
   fundVenue,
   pushQuote,
   readVenueOwner,
@@ -182,6 +183,9 @@ export async function run(cfg: BotConfig): Promise<void> {
     deployBlock = await client.getBlockNumber();
     log(`venue ${venue} owned by you ✓`);
     log("ensuring registration (idempotent)…");
+    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
+      log(`enrolled on the roster as "${cfg.teamName}" ✓`);
+    }
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered ✓");
   } else {
@@ -217,6 +221,11 @@ export async function run(cfg: BotConfig): Promise<void> {
 
     // ── register ────────────────────────────────────────────────────────────────────────────
     banner("Registering the venue");
+    // The registry requires roster enrollment (team name) before a venue can be linked. Ideally
+    // you registered on the maker site already; if not, enroll here with TEAM_NAME.
+    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
+      log(`enrolled on the roster as "${cfg.teamName}" ✓`);
+    }
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered with the CompetitionRegistry ✓");
   }
@@ -308,6 +317,8 @@ export async function run(cfg: BotConfig): Promise<void> {
           log("→ the round's token pair changed — this venue trades the OLD pair. Restart the bot to deploy a venue for the new round.");
           return;
         }
+        // A fresh registry has an empty roster — enroll there before re-linking the venue.
+        await ensureMarketMakerRegistered(wallet, client, fresh.registry, cfg.teamName);
         await registerVenue(wallet, client, fresh.registry, venue!);
         log("re-registered on the new registry ✓");
       } catch (error) {

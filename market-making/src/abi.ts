@@ -39,8 +39,22 @@ const artifact = loadVenueArtifact();
 export const venueAbi: Abi = artifact.abi;
 export const venueBytecode: Hex = artifact.bytecode;
 
-/** Only the one registry method the bot calls — the registry itself is the organizer's deployment. */
+/** The registry methods the bot calls — the registry itself is the organizer's deployment. */
 export const registryAbi = [
+  {
+    type: "function",
+    name: "registerMarketMaker",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "teamName", type: "string" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isMarketMaker",
+    stateMutability: "view",
+    inputs: [{ name: "marketMaker", type: "address" }],
+    outputs: [{ name: "registered", type: "bool" }],
+  },
   {
     type: "function",
     name: "registerVenue",

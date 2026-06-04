@@ -97,6 +97,39 @@ export async function fundVenue(
   return { cashMoved, assetMoved };
 }
 
+/**
+ * Enroll your EOA on the competition roster under your team name (idempotent — calling again just
+ * updates the name). The registry requires enrollment before `registerVenue`, and the organizer's
+ * funding flow keys off the roster. Skipped when already enrolled (e.g. you registered on the
+ * maker site first) so we don't overwrite a name you picked there.
+ */
+export async function ensureMarketMakerRegistered(
+  wallet: WalletClient,
+  client: PublicClient,
+  registry: Hex,
+  teamName: string,
+): Promise<boolean> {
+  const enrolled = (await client.readContract({
+    address: registry,
+    abi: registryAbi,
+    functionName: "isMarketMaker",
+    args: [wallet.account!.address],
+  })) as boolean;
+  if (enrolled) {
+    return false;
+  }
+  const hash = await wallet.writeContract({
+    address: registry,
+    abi: registryAbi,
+    functionName: "registerMarketMaker",
+    args: [teamName],
+    account: wallet.account!,
+    chain: wallet.chain,
+  });
+  assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerMarketMaker");
+  return true;
+}
+
 /** Register the venue under your EOA in the organizer's CompetitionRegistry (owner check passes). */
 export async function registerVenue(
   wallet: WalletClient,
