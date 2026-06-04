@@ -44,11 +44,14 @@ This is how `CompetitionPropAMM` behaves as shipped — each of these is a desig
   timestamp — past it, the quote is expired and nothing fills. (Want quotes that never expire, or a
   different curve? Change it.)
 - **Fills:** every swap executes at exactly `fairPrice` — `CASH→ASSET` divides by it, `ASSET→CASH`
-  multiplies by it. **No spread, no size cap, no inventory band.** The venue pays out of its own
-  balance; a fill it can't cover just reverts. (Add your own spread/skew or inventory rules here.)
+  multiplies by it. **No spread, no size cap, no inventory band.** Inventory stays in YOUR wallet
+  (maker custody): a swap routes `tokenIn` to the owner and pays `tokenOut` from the owner via the
+  allowance you max-approved after deploying — a fill your balance/allowance can't cover just
+  reverts. (Add your own spread/skew or inventory rules here.)
 - **Control:** `updatePrice(fairPrice, validUntil)` (owner only) is how the bot re-prices. It runs no
   checks and always emits `PriceUpdated` — a handy re-quote signal.
-- **Withdraw:** `withdraw(token, to, amount)` (owner only) pulls inventory back out, e.g. between rounds.
+- **Custody:** the venue never holds inventory (no withdraw function needed) — your CASH/ASSET stay
+  in your wallet. Switching venues mid-round is deploy → approve → re-register; inventory never moves.
 
 Whatever you change, keep implementing `IPropAMMPeriphery` and register the venue — that's all the
 router needs to route flow to you.
