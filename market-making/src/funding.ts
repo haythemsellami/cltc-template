@@ -54,6 +54,64 @@ export interface FundingGateDeps {
 }
 
 /**
+ * Stage-one gate: wait for just enough MON to pay for the registration tx. Team registration must
+ * come BEFORE the CASH/ASSET funding gate — the organizer funds against the on-chain roster, so
+ * the operator can't send you round capital until you're enrolled. Same semantics as the full gate:
+ * polls, Enter to override, `assumeFunded` skips.
+ */
+export async function waitForGas(deps: {
+  client: PublicClient;
+  address: Hex;
+  monWei: bigint;
+  log: (message: string) => void;
+  pollMs?: number;
+  assumeFunded?: boolean;
+}): Promise<void> {
+  const { client, address, monWei, log } = deps;
+  const pollMs = deps.pollMs ?? 5_000;
+
+  if (deps.assumeFunded) {
+    log("--assume-funded: skipping the gas gate.");
+    return;
+  }
+
+  log("");
+  log(`Send at least ${formatEther(monWei)} MON to this address so the bot can register your team:`);
+  log(`  address : ${address}`);
+  log("Polling… (or press Enter to continue regardless)");
+
+  let manualContinue = false;
+  const rl = createInterface({ input: process.stdin });
+  rl.on("line", () => {
+    manualContinue = true;
+  });
+
+  try {
+    for (;;) {
+      let bal = 0n;
+      try {
+        bal = await client.getBalance({ address });
+      } catch (error) {
+        log(`  (balance read failed, retrying: ${error instanceof Error ? error.message : String(error)})`);
+        await sleep(pollMs);
+        continue;
+      }
+      const ok = bal >= monWei;
+      log(`  have MON=${formatEther(bal)} -> ${ok ? "enough for registration ✓" : "waiting"}`);
+      if (ok || manualContinue) {
+        if (!ok) {
+          log("Manual override — continuing despite the unmet gas floor.");
+        }
+        return;
+      }
+      await sleep(pollMs);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+/**
  * Print funding instructions, then wait until your address is funded. The gate auto-detects funding
  * by polling balances; or press Enter to continue regardless. `assumeFunded` skips the gate entirely.
  */

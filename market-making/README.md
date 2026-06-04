@@ -24,11 +24,12 @@ cp ../.env.example ../.env          # then fill in the values the organizer gave
 npm start
 ```
 
-That, in order: resolves the active round from the operator API → opens the funding gate (fund the
-printed address with CASH/ASSET + MON, or it auto-detects) → deploys your venue → max-approves it
-for CASH+ASSET (your inventory stays in your wallet) → registers it → seeds the first quote → then
-loops, re-quoting from your strategy. `Ctrl+C`
-prints a summary (quotes pushed, swaps served, balances).
+That, in order: resolves the active round from the operator API → waits for a little MON (≥0.5,
+just gas) → **registers your team** (`TEAM_NAME`) so you appear on the organizer's roster → waits
+for the round funding (the organizer mints CASH/ASSET — and usually more MON — against that
+roster) → deploys your venue → max-approves it for CASH+ASSET (your inventory stays in your
+wallet) → registers the venue → seeds the first quote → then loops, re-quoting from your strategy.
+`Ctrl+C` prints a summary (quotes pushed, swaps served, balances).
 
 Re-running deploys a **fresh** venue. To keep market-making the **same** venue across restarts, pass
 its address:

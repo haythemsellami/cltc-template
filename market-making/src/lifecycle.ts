@@ -1,11 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-import { formatEther, formatUnits, type Account, type PublicClient, type WalletClient } from "viem";
+import { formatEther, formatUnits, parseEther, type Account, type PublicClient, type WalletClient } from "viem";
 
 import { accountFromKey, createReadClient, createWalletClientFor, generatePrivateKey } from "./chain.js";
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
-import { computeFundingRequirement, readBalances, waitForFunding } from "./funding.js";
+import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
 import { fetchRoundContext, sameRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
@@ -22,6 +22,9 @@ import {
 } from "./venue.js";
 
 const RECENT_PRICES_CAP = 128;
+// Enough MON to pay for the registration/approval txs — stage one of funding. The full gas floor
+// (MON_FOR_GAS) is only enforced later, in the main funding gate.
+const REGISTER_GAS_MON = parseEther("0.5");
 
 const log = (message = ""): void => console.log(message);
 const banner = (title: string): void => {
@@ -163,9 +166,12 @@ export async function run(cfg: BotConfig): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
+  const registerGasWei = cfg.monForGasWei < REGISTER_GAS_MON ? cfg.monForGasWei : REGISTER_GAS_MON;
+
   if (cfg.venueOverride) {
     // ── reuse path ─────────────────────────────────────────────────────────────────────────
     banner("Reusing an existing venue");
+    await waitForGas({ client, address, monWei: registerGasWei, log, assumeFunded: cfg.assumeFunded });
     const owner = await readVenueOwner(client, cfg.venueOverride);
     if (owner.toLowerCase() !== address.toLowerCase()) {
       throw new Error(`VENUE ${cfg.venueOverride} is owned by ${owner}, not your address ${address}`);
@@ -184,6 +190,18 @@ export async function run(cfg: BotConfig): Promise<void> {
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered ✓");
   } else {
+    // ── register your team FIRST ─────────────────────────────────────────────────────────────
+    // The organizer funds CASH/ASSET against the on-chain roster — so enroll before waiting for
+    // capital, or you'd be waiting for tokens the operator can't send yet (you're not on their
+    // dashboard until you register). All it needs is a little MON for gas.
+    banner("Registering your team");
+    await waitForGas({ client, address, monWei: registerGasWei, log, assumeFunded: cfg.assumeFunded });
+    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
+      log(`enrolled on the roster as "${cfg.teamName}" ✓ — the organizer can now fund ${address}`);
+    } else {
+      log("already on the roster ✓");
+    }
+
     // ── funding gate ───────────────────────────────────────────────────────────────────────
     banner("Funding gate");
     // The gate can outlast an organizer redeploy (fresh Registry/Monoper, or a new round). Re-resolve
@@ -199,6 +217,10 @@ export async function run(cfg: BotConfig): Promise<void> {
       log("organizer redeployed while we waited — refreshing the round context:");
       ctx = fresh;
       printCtx();
+      // A fresh registry has an empty roster — re-enroll there so the organizer can fund you.
+      if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
+        log(`re-enrolled on the new roster as "${cfg.teamName}" ✓`);
+      }
     }
 
     // ── deploy ────────────────────────────────────────────────────────────────────────────
