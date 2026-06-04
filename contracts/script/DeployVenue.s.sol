@@ -2,13 +2,16 @@
 pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {CompetitionPropAMM} from "../src/CompetitionPropAMM.sol";
 
-/// @notice Optional manual deploy of your venue via Foundry.
+/// @notice Optional manual deploy of your venue via Foundry. Also max-approves the venue for CASH
+///         and ASSET — the venue holds no inventory; it settles swaps against your wallet through
+///         these allowances.
 /// @dev The recommended path is the market-making bot (`cd ../market-making && npm start`), which
-///      deploys, funds, registers, and quotes in one command. Use this script only if you want to
-///      deploy by hand — afterwards run the bot with `VENUE=<address>` to fund/register/quote it.
+///      deploys, approves, registers, and quotes in one command. Use this script only if you want
+///      to deploy by hand — afterwards run the bot with `VENUE=<address>` to register/quote it.
 ///
 ///      Required env:
 ///        PRIVATE_KEY  - your funded deployer key (also becomes the venue owner)
@@ -29,11 +32,14 @@ contract DeployVenue is Script {
 
         vm.startBroadcast(deployerKey);
         CompetitionPropAMM venue = new CompetitionPropAMM(teamName, cash, asset, owner);
+        // Inventory stays in your wallet: the venue needs allowances to settle swaps against it.
+        IERC20(cash).approve(address(venue), type(uint256).max);
+        IERC20(asset).approve(address(venue), type(uint256).max);
         vm.stopBroadcast();
 
-        console2.log("CompetitionPropAMM deployed (un-quoted):", address(venue));
+        console2.log("CompetitionPropAMM deployed (un-quoted) + max-approved for CASH/ASSET:", address(venue));
         console2.log("owner:", owner);
-        console2.log("Next: fund it with CASH + ASSET, register it, then call updatePrice. The");
-        console2.log("market-making bot does all of that for you:  VENUE=%s npm start", address(venue));
+        console2.log("Next: register it, then call updatePrice. The market-making bot does both");
+        console2.log("for you:  VENUE=%s npm start", address(venue));
     }
 }
