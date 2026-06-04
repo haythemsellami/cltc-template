@@ -10,16 +10,21 @@ import {IPropAMMPeriphery} from "./interfaces/IPropAMMPeriphery.sol";
 
 /// @title CompetitionPropAMM
 /// @notice A reference market-making venue for the competition — it works out of the box and is yours
-///         to improve. It holds your CASH/ASSET inventory and pays swaps out of its own balance.
+///         to improve. It holds NO inventory: your CASH/ASSET stay in YOUR wallet, and the venue
+///         settles swaps against your wallet through the allowances you grant it.
 /// @dev THIS IS A STARTING POINT, NOT A FIXED RULE. Deploy it as-is, or change anything: the pricing
 ///      curve, a spread/skew, the fill logic, inventory management, the expiry policy (or no expiry).
 ///      The ONLY hard requirement is that your venue keeps implementing `IPropAMMPeriphery` so the
 ///      organizer's Monoper router can call `getAmountOut`/`swap` and route flow to it, and that you
-///      register it. As shipped: a quote is a single `fairPrice` (WAD CASH per ASSET) valid until
-///      `validUntil`, every swap fills at exactly that price (no spread, no size cap, no inventory
-///      band), and a fill the venue can't cover reverts. The off-chain bot in ../market-making decides
-///      what price to publish and when. PnL is scored off-chain from your (wallet + venue) token
-///      balances marked at the official feed price, minus the gas you spend — that is the only rule.
+///      register it. As shipped: after deploying you max-approve the venue for CASH and ASSET (the
+///      bot does this); a swap then pulls `tokenIn` from the caller to your wallet and pays
+///      `tokenOut` from your wallet to the receiver. A quote is a single `fairPrice` (WAD CASH per
+///      ASSET) valid until `validUntil`, every swap fills at exactly that price (no spread, no size
+///      cap, no inventory band), and a fill your wallet can't cover reverts. Switching venues
+///      mid-round is deploy -> approve -> re-register: your inventory never moves. The off-chain bot
+///      in ../market-making decides what price to publish and when. PnL is scored off-chain from
+///      your wallet's token balances marked at the official feed price, minus the gas you spend —
+///      that is the only rule.
 contract CompetitionPropAMM is IPropAMMPeriphery, Ownable {
     using SafeERC20 for IERC20;
 
@@ -80,14 +85,6 @@ contract CompetitionPropAMM is IPropAMMPeriphery, Ownable {
         emit PriceUpdated(msg.sender, fairPrice, validUntil);
     }
 
-    /// @notice Owner may pull idle inventory out of the venue (e.g., between rounds).
-    function withdraw(address token, address to, uint256 amount) external onlyOwner {
-        if (to == address(0)) {
-            revert ZeroAddress();
-        }
-        IERC20(token).safeTransfer(to, amount);
-    }
-
     function isSupportedPair(address tokenA, address tokenB) public view returns (bool) {
         return (tokenA == CASH && tokenB == ASSET) || (tokenA == ASSET && tokenB == CASH);
     }
@@ -135,9 +132,11 @@ contract CompetitionPropAMM is IPropAMMPeriphery, Ownable {
             revert InsufficientOutput(amountOut, minAmountOut);
         }
 
-        // Self-custody: pull input into the venue, pay output from the venue's own balance.
-        IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
-        IERC20(tokenOut).safeTransfer(receiver, amountOut);
+        // Inventory lives with the owner (you): input goes to your wallet, output is paid from your
+        // wallet via the allowance you granted this venue after deploying.
+        address inventory = owner();
+        IERC20(tokenIn).safeTransferFrom(msg.sender, inventory, amountIn);
+        IERC20(tokenOut).safeTransferFrom(inventory, receiver, amountOut);
 
         emit Swap(msg.sender, tokenIn, tokenOut, receiver, amountIn, amountOut);
     }

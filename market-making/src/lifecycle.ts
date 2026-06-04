@@ -11,15 +11,14 @@ import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
 import type { Hex, QuoterState } from "./types.js";
 import {
+  approveVenueAllowances,
   buildVenueConstructorArgs,
   countSwaps,
   deployVenue,
   ensureMarketMakerRegistered,
-  fundVenue,
   pushQuote,
   readVenueOwner,
   registerVenue,
-  withdrawAll,
 } from "./venue.js";
 
 const RECENT_PRICES_CAP = 128;
@@ -150,18 +149,11 @@ export async function run(cfg: BotConfig): Promise<void> {
     if (venue) {
       try {
         const swaps = await countSwaps(client, venue, deployBlock);
-        const vb = await readBalances(client, venue, ctx.cashToken, ctx.assetToken);
         const eb = await readBalances(client, address, ctx.cashToken, ctx.assetToken);
         log(`quotes pushed    : ${state.quoteCount}`);
         log(`swaps served     : ${swaps < 0 ? "unknown (RPC range limit)" : swaps}`);
-        log(`venue CASH/ASSET : ${fmt(vb.cashWad)} / ${fmt(vb.assetWad)}`);
-        log(`EOA   CASH/ASSET : ${fmt(eb.cashWad)} / ${fmt(eb.assetWad)}   (MON ${formatEther(eb.monWei)})`);
-        log(`venue            : ${venue}`);
-        if (cfg.withdrawOnExit) {
-          log("withdrawing venue inventory back to the EOA…");
-          await withdrawAll(wallet, client, venue, address, ctx);
-          log("withdrawn.");
-        }
+        log(`your CASH/ASSET  : ${fmt(eb.cashWad)} / ${fmt(eb.assetWad)}   (MON ${formatEther(eb.monWei)})`);
+        log(`venue            : ${venue}  (holds no inventory — it trades against your wallet)`);
       } catch (error) {
         log(`summary failed: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -182,6 +174,9 @@ export async function run(cfg: BotConfig): Promise<void> {
     // Bound the shutdown Swap-log scan to this session (the venue's creation block is unknown here).
     deployBlock = await client.getBlockNumber();
     log(`venue ${venue} owned by you ✓`);
+    if ((await approveVenueAllowances(wallet, client, venue, ctx)) > 0) {
+      log("venue re-approved for CASH + ASSET ✓");
+    }
     log("ensuring registration (idempotent)…");
     if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
       log(`enrolled on the roster as "${cfg.teamName}" ✓`);
@@ -213,11 +208,11 @@ export async function run(cfg: BotConfig): Promise<void> {
     deployBlock = deployed.blockNumber;
     log(`venue deployed un-quoted: ${venue}  (block ${deployBlock})`);
 
-    // ── fund the venue with inventory ───────────────────────────────────────────────────────
-    banner("Funding the venue with inventory");
-    const bal = await readBalances(client, address, ctx.cashToken, ctx.assetToken);
-    const moved = await fundVenue(wallet, client, venue, ctx, bal.cashWad, bal.assetWad, cfg.fundFractionBps);
-    log(`moved into venue: ${fmt(moved.cashMoved)} CASH + ${fmt(moved.assetMoved)} ASSET`);
+    // ── approve the venue ───────────────────────────────────────────────────────────────────
+    banner("Approving the venue");
+    // Inventory stays in YOUR wallet — the venue settles swaps against it via these allowances.
+    await approveVenueAllowances(wallet, client, venue, ctx);
+    log("venue max-approved for CASH + ASSET (your tokens never leave your wallet) ✓");
 
     // ── register ────────────────────────────────────────────────────────────────────────────
     banner("Registering the venue");

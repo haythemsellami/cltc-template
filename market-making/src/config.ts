@@ -30,8 +30,6 @@ export interface BotConfig {
   requoteSecs: number;
   /** Re-quote immediately when the price moves at least this many bps since the last quote. */
   requoteBps: number;
-  /** Fraction of your EOA's CASH/ASSET to move into the venue as inventory, in bps of balance. */
-  fundFractionBps: number;
   /** MON to require on your address before proceeding (gas), in wei. */
   monForGasWei: bigint;
   /** Fair price (WAD) used to seed the first quote if the feed hasn't ticked yet. */
@@ -40,11 +38,9 @@ export interface BotConfig {
   venueOverride: Hex | null;
   /** Skip the interactive funding gate (assume the address is already funded). */
   assumeFunded: boolean;
-  /** On Ctrl+C, withdraw the venue's CASH/ASSET back to your EOA. */
-  withdrawOnExit: boolean;
 }
 
-const BOOLEAN_FLAGS = new Set(["--assume-funded", "--withdraw-on-exit"]);
+const BOOLEAN_FLAGS = new Set(["--assume-funded"]);
 
 /** Minimal `--flag value` / `--bool-flag` parser. Unknown flags are ignored. */
 function parseArgs(argv: string[]): { flags: Map<string, string>; bools: Set<string> } {
@@ -113,11 +109,9 @@ export function loadConfig(argv: string[] = []): BotConfig {
     ttlSeconds,
     requoteSecs,
     requoteBps: num("--requote-bps", "REQUOTE_BPS", 15),
-    fundFractionBps: num("--fund-fraction-bps", "FUND_FRACTION_BPS", 10_000),
     monForGasWei: parseEther(pick("--mon-gas", "MON_FOR_GAS", "0.5")),
     fallbackPriceWad,
     venueOverride: venueRaw ? (venueRaw as Hex) : null,
     assumeFunded: bools.has("--assume-funded"),
-    withdrawOnExit: bools.has("--withdraw-on-exit"),
   };
 }

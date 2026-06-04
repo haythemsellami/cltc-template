@@ -25,8 +25,9 @@ npm start
 ```
 
 That, in order: resolves the active round from the operator API → opens the funding gate (fund the
-printed address with CASH/ASSET + MON, or it auto-detects) → deploys your venue → moves your inventory
-into it → registers it → seeds the first quote → then loops, re-quoting from your strategy. `Ctrl+C`
+printed address with CASH/ASSET + MON, or it auto-detects) → deploys your venue → max-approves it
+for CASH+ASSET (your inventory stays in your wallet) → registers it → seeds the first quote → then
+loops, re-quoting from your strategy. `Ctrl+C`
 prints a summary (quotes pushed, swaps served, balances).
 
 Re-running deploys a **fresh** venue. To keep market-making the **same** venue across restarts, pass
@@ -54,12 +55,10 @@ the RPC URL, and funds your address.
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
-| `--fund-fraction-bps` | `FUND_FRACTION_BPS` | `10000` | share of your EOA balance moved into the venue |
 | `--mon-gas` | `MON_FOR_GAS` | `0.5` | MON to require before proceeding (gas) |
 | `--fallback-price` | `FALLBACK_PRICE` | `65000` | seed price if the feed hasn't ticked yet |
 | `--venue` | `VENUE` | – | reuse a venue you already own (skip deploy + fund) |
 | `--assume-funded` | – | off | skip the interactive funding gate |
-| `--withdraw-on-exit` | – | off | pull venue inventory back to your EOA on `Ctrl+C` |
 
 ## Writing a strategy
 

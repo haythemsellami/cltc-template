@@ -60,41 +60,43 @@ export async function readVenueOwner(client: PublicClient, venue: Hex): Promise<
   return (await client.readContract({ address: venue, abi: venueAbi, functionName: "owner" })) as Hex;
 }
 
+const MAX_UINT256 = (1n << 256n) - 1n;
+
 /**
- * Move CASH + ASSET inventory from your EOA into the venue (self-custody: the venue pays swaps out of
- * its own balance, so it needs both sides). Transfers `fundFractionBps` of each current balance.
+ * Max-approve the venue for CASH and ASSET so it can settle swaps against your wallet — your
+ * inventory never leaves your EOA. Idempotent: a token whose allowance is already effectively
+ * unlimited is skipped, so re-running (or reusing a venue) costs nothing. Returns how many
+ * approvals were actually sent.
  */
-export async function fundVenue(
+export async function approveVenueAllowances(
   wallet: WalletClient,
   client: PublicClient,
   venue: Hex,
   ctx: RoundContext,
-  cashBalanceWad: bigint,
-  assetBalanceWad: bigint,
-  fundFractionBps: number,
-): Promise<{ cashMoved: bigint; assetMoved: bigint }> {
-  const frac = BigInt(Math.max(0, Math.min(10_000, Math.floor(fundFractionBps))));
-  const cashMoved = (cashBalanceWad * frac) / 10_000n;
-  const assetMoved = (assetBalanceWad * frac) / 10_000n;
-
-  for (const [token, amount] of [
-    [ctx.cashToken, cashMoved],
-    [ctx.assetToken, assetMoved],
-  ] as const) {
-    if (amount <= 0n) {
-      continue;
+): Promise<number> {
+  let sent = 0;
+  for (const token of [ctx.cashToken, ctx.assetToken]) {
+    const current = (await client.readContract({
+      address: token,
+      abi: tokenAbi,
+      functionName: "allowance",
+      args: [wallet.account!.address, venue],
+    })) as bigint;
+    if (current >= MAX_UINT256 / 2n) {
+      continue; // already effectively unlimited
     }
     const hash = await wallet.writeContract({
       address: token,
       abi: tokenAbi,
-      functionName: "transfer",
-      args: [venue, amount],
+      functionName: "approve",
+      args: [venue, MAX_UINT256],
       account: wallet.account!,
       chain: wallet.chain,
     });
-    assertSuccess(await client.waitForTransactionReceipt({ hash }), "inventory transfer");
+    assertSuccess(await client.waitForTransactionReceipt({ hash }), "venue approval");
+    sent += 1;
   }
-  return { cashMoved, assetMoved };
+  return sent;
 }
 
 /**
@@ -167,36 +169,6 @@ export async function pushQuote(
   });
   assertSuccess(await client.waitForTransactionReceipt({ hash }), "updatePrice");
   return hash;
-}
-
-/** Pull the venue's full CASH + ASSET balance back to the EOA (owner-only `withdraw`). */
-export async function withdrawAll(
-  wallet: WalletClient,
-  client: PublicClient,
-  venue: Hex,
-  to: Hex,
-  ctx: RoundContext,
-): Promise<void> {
-  for (const token of [ctx.cashToken, ctx.assetToken]) {
-    const balance = (await client.readContract({
-      address: token,
-      abi: tokenAbi,
-      functionName: "balanceOf",
-      args: [venue],
-    })) as bigint;
-    if (balance <= 0n) {
-      continue;
-    }
-    const hash = await wallet.writeContract({
-      address: venue,
-      abi: venueAbi,
-      functionName: "withdraw",
-      args: [token, to, balance],
-      account: wallet.account!,
-      chain: wallet.chain,
-    });
-    assertSuccess(await client.waitForTransactionReceipt({ hash }), "withdraw");
-  }
 }
 
 /** Count Swap events the venue has served since `fromBlock` — a quick "did takers hit me" summary. */

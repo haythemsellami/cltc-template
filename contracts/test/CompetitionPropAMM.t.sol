@@ -64,9 +64,13 @@ contract CompetitionPropAMMTest is Test {
         assertEq(afterPrice, 2e18, "halving the price doubles the ASSET out");
     }
 
-    function testSwapSelfCustodyMovesBalances() external {
+    function testSwapMovesOwnerBalances() external {
         CompetitionPropAMM venue = _deployQuoted();
-        asset.mint(address(venue), 100e18); // venue must hold ASSET to pay a CASH->ASSET fill
+        // Inventory stays in YOUR wallet: mint to the owner and approve the venue (the bot does
+        // this max-approve for you after deploying).
+        asset.mint(TEAM, 100e18);
+        vm.prank(TEAM);
+        asset.approve(address(venue), type(uint256).max);
 
         cash.mint(TRADER, 1_000e18);
         vm.startPrank(TRADER);
@@ -77,8 +81,23 @@ contract CompetitionPropAMMTest is Test {
 
         assertEq(out, 1e18, "amountOut");
         assertEq(asset.balanceOf(RECEIVER), 1e18, "receiver got ASSET");
-        assertEq(cash.balanceOf(address(venue)), 1_000e18, "venue took CASH");
-        assertEq(asset.balanceOf(address(venue)), 99e18, "venue paid ASSET from its own balance");
+        assertEq(cash.balanceOf(TEAM), 1_000e18, "owner took CASH");
+        assertEq(asset.balanceOf(TEAM), 99e18, "owner paid ASSET from its wallet");
+        assertEq(cash.balanceOf(address(venue)), 0, "venue holds nothing");
+        assertEq(asset.balanceOf(address(venue)), 0, "venue holds nothing");
+    }
+
+    function testSwapRevertsWithoutOwnerAllowance() external {
+        CompetitionPropAMM venue = _deployQuoted();
+        asset.mint(TEAM, 100e18); // owner is funded but never approved the venue
+
+        cash.mint(TRADER, 1_000e18);
+        vm.startPrank(TRADER);
+        cash.approve(address(venue), 1_000e18);
+        (uint256 quote, bytes memory extra) = venue.getAmountOut(address(cash), address(asset), 1_000e18);
+        vm.expectRevert();
+        venue.swap(address(cash), address(asset), 1_000e18, quote, RECEIVER, extra);
+        vm.stopPrank();
     }
 
     function testUnquotedVenueReverts() external {
