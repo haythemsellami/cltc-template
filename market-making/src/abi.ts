@@ -39,21 +39,25 @@ const artifact = loadVenueArtifact();
 export const venueAbi: Abi = artifact.abi;
 export const venueBytecode: Hex = artifact.bytecode;
 
-/** The registry methods the bot calls — the registry itself is the organizer's deployment. */
+/**
+ * The registry methods the bot calls — the registry itself is the organizer's deployment.
+ * Note: team enrollment (`registerMarketMaker`) is deliberately NOT here — you register your team
+ * manually on the maker dashboard with this bot's wallet; the bot only reads the roster.
+ */
 export const registryAbi = [
-  {
-    type: "function",
-    name: "registerMarketMaker",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "teamName", type: "string" }],
-    outputs: [],
-  },
   {
     type: "function",
     name: "isMarketMaker",
     stateMutability: "view",
     inputs: [{ name: "marketMaker", type: "address" }],
     outputs: [{ name: "registered", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "teamNameOf",
+    stateMutability: "view",
+    inputs: [{ name: "marketMaker", type: "address" }],
+    outputs: [{ name: "teamName", type: "string" }],
   },
   {
     type: "function",

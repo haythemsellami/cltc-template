@@ -6,25 +6,26 @@ import { accountFromKey, createReadClient, createWalletClientFor, generatePrivat
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
 import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
-import { fetchRoundContext, sameRoundContext } from "./manifest.js";
+import { fetchFeedState, fetchRoundContext, sameRoundContext, waitForRoundContext, type FeedRoundStateInfo } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
-import type { Hex, QuoterState } from "./types.js";
+import type { Hex, QuoterState, RoundContext } from "./types.js";
 import {
   approveVenueAllowances,
   buildVenueConstructorArgs,
   countSwaps,
   deployVenue,
-  ensureMarketMakerRegistered,
+  isMarketMakerRegistered,
   pushQuote,
+  readTeamName,
   readVenueOwner,
   registerVenue,
 } from "./venue.js";
 
 const RECENT_PRICES_CAP = 128;
-// Enough MON to pay for the registration/approval txs — stage one of funding. The full gas floor
-// (MON_FOR_GAS) is only enforced later, in the main funding gate.
-const REGISTER_GAS_MON = parseEther("0.5");
+// Enough MON for the venue-reuse path's approval/registration txs (the normal path's full funding
+// gate already includes the MON_FOR_GAS floor alongside CASH/ASSET).
+const REUSE_GAS_MON = parseEther("0.5");
 
 const log = (message = ""): void => console.log(message);
 const banner = (title: string): void => {
@@ -60,6 +61,74 @@ async function waitForFirstPrice(feed: FeedClient, timeoutMs: number): Promise<b
   return feed.latestPriceWad();
 }
 
+/**
+ * Which feed stream to track. An explicit FEED_PRICE_STREAM/--feed-stream always wins; otherwise
+ * prefer what the round is actually broadcasting (the feed state's stream list), so the bot follows
+ * the round's market without you re-configuring SYMBOL per round.
+ */
+function resolveFeedStream(cfg: BotConfig, feedState: FeedRoundStateInfo | null): string {
+  if (cfg.feedStreamExplicit) {
+    return cfg.feedPriceStream;
+  }
+  const fromRound = feedState?.streams.find((s) => s.endsWith("@aggTrade")) ?? feedState?.streams[0];
+  if (fromRound && fromRound !== cfg.feedPriceStream) {
+    log(`feed stream auto-detected from the round: ${fromRound} (set FEED_PRICE_STREAM to override)`);
+    return fromRound;
+  }
+  return cfg.feedPriceStream;
+}
+
+/**
+ * Team registration is MANUAL: you sign `registerMarketMaker(teamName)` on the maker dashboard's
+ * Register tab — with THIS bot's wallet (the registry enrolls msg.sender, and your venue's owner
+ * must be the enrolled maker). The bot just waits for its address to appear on the roster, then
+ * reads back the team name you chose. Costs the bot nothing — the registration gas is paid by the
+ * wallet in your browser.
+ */
+async function waitForTeamRegistration(deps: {
+  client: PublicClient;
+  registry: Hex;
+  address: Hex;
+  dashboardUrl: string;
+  pollMs?: number;
+}): Promise<string> {
+  const { client, registry, address, dashboardUrl } = deps;
+  const pollMs = deps.pollMs ?? 5_000;
+
+  if (await isMarketMakerRegistered(client, registry, address).catch(() => false)) {
+    const name = await readTeamName(client, registry, address);
+    log(`already on the roster${name ? ` as "${name}"` : ""} ✓`);
+    return name;
+  }
+
+  log("");
+  log("Register your team on the maker dashboard — the bot waits here until you do:");
+  log(`  1. open ${dashboardUrl} → Register tab`);
+  log(`  2. connect THIS bot's wallet:  ${address}`);
+  log("     (set PRIVATE_KEY to a key your browser wallet holds, or import the generated key file)");
+  log("  3. sign \"Register team\" with your team name");
+  log("Once you're on the roster the organizer can fund this address with the round's CASH/ASSET.");
+  log("Polling the roster…");
+
+  let polls = 0;
+  for (;;) {
+    try {
+      if (await isMarketMakerRegistered(client, registry, address)) {
+        const name = await readTeamName(client, registry, address);
+        log(`team registered${name ? ` as "${name}"` : ""} ✓`);
+        return name;
+      }
+    } catch (error) {
+      log(`  (roster read failed, retrying: ${error instanceof Error ? error.message : String(error)})`);
+    }
+    polls += 1;
+    if (polls % 12 === 0) {
+      log(`  still waiting for ${address} to appear on the roster…`);
+    }
+    await sleep(pollMs);
+  }
+}
+
 export async function run(cfg: BotConfig): Promise<void> {
   banner("PropAMM competition — market maker");
   const key = resolveIdentity(cfg);
@@ -70,9 +139,36 @@ export async function run(cfg: BotConfig): Promise<void> {
 
   log(`address     : ${address}`);
   log(`operator API: ${cfg.operatorApiUrl}`);
-  log(`feed        : ${cfg.feedWsUrl}  stream=${cfg.feedPriceStream}`);
+  log(`dashboard   : ${cfg.dashboardUrl}`);
 
-  const feed = new FeedClient(cfg.feedWsUrl, cfg.feedPriceStream, `mm:${cfg.teamName}`);
+  // ── round gate ─────────────────────────────────────────────────────────────────────────────
+  // The bot idles here until the organizer has an active round — `npm start` any time, even days
+  // before the competition; it picks the round up the moment it goes live.
+  banner("Waiting for an active round");
+  let ctx = await waitForRoundContext(cfg.operatorApiUrl, log);
+  let feedState = await fetchFeedState(cfg.operatorApiUrl);
+  const printCtx = (): void => {
+    log(`round #${ctx.round}`);
+    log(`  registry : ${ctx.registry}`);
+    log(`  monoper  : ${ctx.monoper}`);
+    log(`  CASH     : ${ctx.cashToken}`);
+    log(`  ASSET    : ${ctx.assetToken}`);
+    log(`  initial  : ${fmt(ctx.initialCash)} CASH + ${fmt(ctx.initialAsset)} ASSET per maker (recommended)`);
+    if (feedState) {
+      log(
+        `  feed     : ${feedState.mode}${feedState.symbol ? ` ${feedState.symbol}` : ""} ×${feedState.speed}` +
+          `${feedState.paused ? " (paused)" : ""} — streams: ${feedState.streams.join(", ") || "(none yet)"}`,
+      );
+    } else {
+      log("  feed     : not broadcasting yet — quoting starts on the first tick");
+    }
+  };
+  printCtx();
+
+  // The feed subscription follows the round's actual market (unless you pinned FEED_PRICE_STREAM).
+  const feedStream = resolveFeedStream(cfg, feedState);
+  log(`feed        : ${cfg.feedWsUrl}  stream=${feedStream}`);
+  const feed = new FeedClient(cfg.feedWsUrl, feedStream, `mm:${cfg.teamName}`);
   feed.start();
 
   // Rolling window of recent feed prices, handed to your strategy each quote (oldest → newest).
@@ -84,18 +180,16 @@ export async function run(cfg: BotConfig): Promise<void> {
     }
   });
 
-  // ── round context ──────────────────────────────────────────────────────────────────────────
-  banner("Resolving the active round");
-  let ctx = await fetchRoundContext(cfg.operatorApiUrl);
-  const printCtx = (): void => {
-    log(`round #${ctx.round}`);
-    log(`  registry : ${ctx.registry}`);
-    log(`  monoper  : ${ctx.monoper}`);
-    log(`  CASH     : ${ctx.cashToken}`);
-    log(`  ASSET    : ${ctx.assetToken}`);
-    log(`  initial  : ${fmt(ctx.initialCash)} CASH + ${fmt(ctx.initialAsset)} ASSET per maker (recommended)`);
-  };
-  printCtx();
+  // ── registration gate (manual, via the dashboard) ──────────────────────────────────────────
+  banner("Team registration");
+  const onChainTeamName = await waitForTeamRegistration({
+    client,
+    registry: ctx.registry,
+    address,
+    dashboardUrl: cfg.dashboardUrl,
+  });
+  // The venue's baked-in label mirrors your roster name; TEAM_NAME is only the fallback.
+  const venueLabel = onChainTeamName || cfg.teamName;
 
   // Shared mutable run state.
   const state: QuoterState = { lastFeedPriceWad: null, lastQuoteMs: null, quoteCount: 0 };
@@ -166,12 +260,11 @@ export async function run(cfg: BotConfig): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-  const registerGasWei = cfg.monForGasWei < REGISTER_GAS_MON ? cfg.monForGasWei : REGISTER_GAS_MON;
-
   if (cfg.venueOverride) {
     // ── reuse path ─────────────────────────────────────────────────────────────────────────
     banner("Reusing an existing venue");
-    await waitForGas({ client, address, monWei: registerGasWei, log, assumeFunded: cfg.assumeFunded });
+    const reuseGasWei = cfg.monForGasWei < REUSE_GAS_MON ? cfg.monForGasWei : REUSE_GAS_MON;
+    await waitForGas({ client, address, monWei: reuseGasWei, log, assumeFunded: cfg.assumeFunded });
     const owner = await readVenueOwner(client, cfg.venueOverride);
     if (owner.toLowerCase() !== address.toLowerCase()) {
       throw new Error(`VENUE ${cfg.venueOverride} is owned by ${owner}, not your address ${address}`);
@@ -183,49 +276,33 @@ export async function run(cfg: BotConfig): Promise<void> {
     if ((await approveVenueAllowances(wallet, client, venue, ctx)) > 0) {
       log("venue re-approved for CASH + ASSET ✓");
     }
-    log("ensuring registration (idempotent)…");
-    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
-      log(`enrolled on the roster as "${cfg.teamName}" ✓`);
-    }
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered ✓");
   } else {
-    // ── register your team FIRST ─────────────────────────────────────────────────────────────
-    // The organizer funds CASH/ASSET against the on-chain roster — so enroll before waiting for
-    // capital, or you'd be waiting for tokens the operator can't send yet (you're not on their
-    // dashboard until you register). All it needs is a little MON for gas.
-    banner("Registering your team");
-    await waitForGas({ client, address, monWei: registerGasWei, log, assumeFunded: cfg.assumeFunded });
-    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
-      log(`enrolled on the roster as "${cfg.teamName}" ✓ — the organizer can now fund ${address}`);
-    } else {
-      log("already on the roster ✓");
-    }
-
     // ── funding gate ───────────────────────────────────────────────────────────────────────
     banner("Funding gate");
-    // The gate can outlast an organizer redeploy (fresh Registry/Monoper, or a new round). Re-resolve
-    // the manifest after the wait and re-gate if the context changed under us — otherwise we would
+    // You're on the roster, so the organizer's Funding tab now shows this address. The gate can
+    // outlast an organizer redeploy (fresh Registry/Monoper, or a new round) — re-resolve the
+    // manifest after the wait and re-gate if the context changed under us, otherwise we would
     // deploy/fund/register against a registry that no longer exists in the manifest.
     for (;;) {
       const req = computeFundingRequirement(ctx, cfg.monForGasWei);
       await waitForFunding({ client, address, ctx, req, log, assumeFunded: cfg.assumeFunded });
-      const fresh = await fetchRoundContext(cfg.operatorApiUrl);
+      const fresh = await waitForRoundContext(cfg.operatorApiUrl, log);
       if (sameRoundContext(ctx, fresh)) {
         break;
       }
       log("organizer redeployed while we waited — refreshing the round context:");
       ctx = fresh;
+      feedState = await fetchFeedState(cfg.operatorApiUrl);
       printCtx();
-      // A fresh registry has an empty roster — re-enroll there so the organizer can fund you.
-      if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
-        log(`re-enrolled on the new roster as "${cfg.teamName}" ✓`);
-      }
+      // A fresh registry has an empty roster — re-register your team on the dashboard against it.
+      await waitForTeamRegistration({ client, registry: ctx.registry, address, dashboardUrl: cfg.dashboardUrl });
     }
 
     // ── deploy ────────────────────────────────────────────────────────────────────────────
     banner("Deploying your CompetitionPropAMM venue");
-    const deployed = await deployVenue(wallet, client, buildVenueConstructorArgs(cfg.teamName, address, ctx));
+    const deployed = await deployVenue(wallet, client, buildVenueConstructorArgs(venueLabel, address, ctx));
     venue = deployed.address;
     deployBlock = deployed.blockNumber;
     log(`venue deployed un-quoted: ${venue}  (block ${deployBlock})`);
@@ -238,11 +315,6 @@ export async function run(cfg: BotConfig): Promise<void> {
 
     // ── register ────────────────────────────────────────────────────────────────────────────
     banner("Registering the venue");
-    // The registry requires roster enrollment (team name) before a venue can be linked. Ideally
-    // you registered on the maker site already; if not, enroll here with TEAM_NAME.
-    if (await ensureMarketMakerRegistered(wallet, client, ctx.registry, cfg.teamName)) {
-      log(`enrolled on the roster as "${cfg.teamName}" ✓`);
-    }
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered with the CompetitionRegistry ✓");
   }
@@ -311,9 +383,12 @@ export async function run(cfg: BotConfig): Promise<void> {
   // ── registry watch: self-heal across organizer redeploys ───────────────────────────────────
   // If the organizer resets the competition mid-run (fresh Registry/Monoper), this maker's
   // registration vanishes with the old registry and it silently stops receiving flow. Poll the
-  // manifest and re-register the venue on the new registry — or tell the operator to restart the
-  // bot when the round's token pair changed (this venue holds the old pair).
+  // manifest; when the registry changes, wait for you to re-register your team on the dashboard
+  // (registration is manual), then re-link the venue — or tell you to restart when the round's
+  // token pair changed (this venue holds the old pair).
   let watchBusy = false;
+  let needRelink = false;
+  let relinkNagged = false;
   registryWatch = setInterval(() => {
     if (stopped || watchBusy) {
       return;
@@ -321,23 +396,39 @@ export async function run(cfg: BotConfig): Promise<void> {
     watchBusy = true;
     void (async () => {
       try {
-        const fresh = await fetchRoundContext(cfg.operatorApiUrl);
-        if (sameRoundContext(ctx, fresh)) {
-          return;
+        let fresh: RoundContext;
+        try {
+          fresh = await fetchRoundContext(cfg.operatorApiUrl);
+        } catch {
+          return; // between rounds / mid-reset — wait for the next active round to compare against
         }
-        log(`organizer redeployed (registry ${ctx.registry} → ${fresh.registry}) — refreshing…`);
-        const pairChanged =
-          fresh.cashToken.toLowerCase() !== ctx.cashToken.toLowerCase() ||
-          fresh.assetToken.toLowerCase() !== ctx.assetToken.toLowerCase();
-        ctx = fresh;
-        if (pairChanged) {
-          log("→ the round's token pair changed — this venue trades the OLD pair. Restart the bot to deploy a venue for the new round.");
-          return;
+        if (!sameRoundContext(ctx, fresh)) {
+          log(`organizer redeployed (registry ${ctx.registry} → ${fresh.registry}) — refreshing…`);
+          const pairChanged =
+            fresh.cashToken.toLowerCase() !== ctx.cashToken.toLowerCase() ||
+            fresh.assetToken.toLowerCase() !== ctx.assetToken.toLowerCase();
+          ctx = fresh;
+          if (pairChanged) {
+            log("→ the round's token pair changed — this venue trades the OLD pair. Restart the bot to deploy a venue for the new round.");
+            return;
+          }
+          needRelink = true;
+          relinkNagged = false;
         }
-        // A fresh registry has an empty roster — enroll there before re-linking the venue.
-        await ensureMarketMakerRegistered(wallet, client, fresh.registry, cfg.teamName);
-        await registerVenue(wallet, client, fresh.registry, venue!);
-        log("re-registered on the new registry ✓");
+        if (needRelink) {
+          // A fresh registry has an empty roster, and registration is manual — wait for you to
+          // re-register on the dashboard, then re-link the venue.
+          if (!(await isMarketMakerRegistered(client, ctx.registry, address))) {
+            if (!relinkNagged) {
+              log(`→ your team isn't on the NEW roster yet — re-register on the dashboard (${cfg.dashboardUrl}, Register tab, wallet ${address}); the bot re-links the venue once you do.`);
+              relinkNagged = true;
+            }
+            return;
+          }
+          await registerVenue(wallet, client, ctx.registry, venue!);
+          needRelink = false;
+          log("re-registered on the new registry ✓");
+        }
       } catch (error) {
         log(`registry watch: ${error instanceof Error ? error.message : String(error)}`);
       } finally {

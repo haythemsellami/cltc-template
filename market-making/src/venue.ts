@@ -100,36 +100,31 @@ export async function approveVenueAllowances(
 }
 
 /**
- * Enroll your EOA on the competition roster under your team name (idempotent — calling again just
- * updates the name). The registry requires enrollment before `registerVenue`, and the organizer's
- * funding flow keys off the roster. Skipped when already enrolled (e.g. you registered on the
- * maker site first) so we don't overwrite a name you picked there.
+ * Is this address enrolled on the competition roster? Team registration is MANUAL — you sign
+ * `registerMarketMaker(teamName)` from the maker dashboard's Register tab using THIS bot's wallet.
+ * The registry requires enrollment before `registerVenue`, and the organizer funds the roster.
  */
-export async function ensureMarketMakerRegistered(
-  wallet: WalletClient,
-  client: PublicClient,
-  registry: Hex,
-  teamName: string,
-): Promise<boolean> {
-  const enrolled = (await client.readContract({
+export async function isMarketMakerRegistered(client: PublicClient, registry: Hex, address: Hex): Promise<boolean> {
+  return (await client.readContract({
     address: registry,
     abi: registryAbi,
     functionName: "isMarketMaker",
-    args: [wallet.account!.address],
+    args: [address],
   })) as boolean;
-  if (enrolled) {
-    return false;
+}
+
+/** The on-chain team name you registered with on the dashboard ("" when unreadable/unset). */
+export async function readTeamName(client: PublicClient, registry: Hex, address: Hex): Promise<string> {
+  try {
+    return (await client.readContract({
+      address: registry,
+      abi: registryAbi,
+      functionName: "teamNameOf",
+      args: [address],
+    })) as string;
+  } catch {
+    return "";
   }
-  const hash = await wallet.writeContract({
-    address: registry,
-    abi: registryAbi,
-    functionName: "registerMarketMaker",
-    args: [teamName],
-    account: wallet.account!,
-    chain: wallet.chain,
-  });
-  assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerMarketMaker");
-  return true;
 }
 
 /** Register the venue under your EOA in the organizer's CompetitionRegistry (owner check passes). */

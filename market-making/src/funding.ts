@@ -54,10 +54,9 @@ export interface FundingGateDeps {
 }
 
 /**
- * Stage-one gate: wait for just enough MON to pay for the registration tx. Team registration must
- * come BEFORE the CASH/ASSET funding gate — the organizer funds against the on-chain roster, so
- * the operator can't send you round capital until you're enrolled. Same semantics as the full gate:
- * polls, Enter to override, `assumeFunded` skips.
+ * Lightweight MON-only gate (the venue-reuse path): wait for just enough gas to pay for the
+ * approval + venue-registration txs. The normal path's full funding gate already includes the MON
+ * floor. Same semantics as the full gate: polls, Enter to override, `assumeFunded` skips.
  */
 export async function waitForGas(deps: {
   client: PublicClient;
@@ -76,7 +75,7 @@ export async function waitForGas(deps: {
   }
 
   log("");
-  log(`Send at least ${formatEther(monWei)} MON to this address so the bot can register your team:`);
+  log(`Send at least ${formatEther(monWei)} MON to this address so the bot can approve + register your venue:`);
   log(`  address : ${address}`);
   log("Polling… (or press Enter to continue regardless)");
 

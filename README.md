@@ -56,10 +56,14 @@ cp .env.example .env       # fill in PRIVATE_KEY + the URLs the organizer gave y
 cd market-making && npm install && npm start
 ```
 
-`npm start` resolves the active round, opens a funding gate (fund the printed address, or it
-auto-detects), registers your team on the roster as soon as it has gas (so the organizer can fund you), waits for the round capital, deploys your venue, max-approves it for CASH+ASSET (your inventory stays in your wallet), registers it, seeds the first quote, then loops
-— re-pricing from your strategy. `Ctrl+C` prints a summary. Re-running deploys a fresh venue; pass
-`VENUE=0x…` to keep market-making the same one.
+`npm start` listens until the organizer has an active round (start it any time — it picks the
+round up the moment it goes live and prints its details: tokens, recommended capital, the feed's
+market), then waits for you to **register your team manually on the maker dashboard** (Register
+tab, connected as the bot's printed wallet — the registry enrolls the signer, and your venue's
+owner must be that same address), waits for the round capital the organizer mints against the
+roster, deploys your venue, max-approves it for CASH+ASSET (your inventory stays in your wallet),
+registers it, seeds the first quote, then loops — re-pricing from your strategy. `Ctrl+C` prints a
+summary. Re-running deploys a fresh venue; pass `VENUE=0x…` to keep market-making the same one.
 
 ## Make it yours
 

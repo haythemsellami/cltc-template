@@ -51,6 +51,79 @@ export async function fetchRoundContext(operatorApiUrl: string): Promise<RoundCo
 }
 
 /**
+ * Block until an active round exists, polling the manifest. This is the bot's idle state: `npm
+ * start` before the organizer has deployed/selected a round just sits here listening, and picks the
+ * round up the moment it goes live. Each distinct wait-reason is logged once (plus a periodic
+ * heartbeat) so the console explains exactly what the organizer still has to do.
+ */
+export async function waitForRoundContext(
+  operatorApiUrl: string,
+  log: (message: string) => void,
+  pollMs = 5_000,
+): Promise<RoundContext> {
+  let lastReason = "";
+  let polls = 0;
+  for (;;) {
+    try {
+      return await fetchRoundContext(operatorApiUrl);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (reason !== lastReason) {
+        log(`waiting: ${reason}`);
+        lastReason = reason;
+      } else if (polls % 24 === 0 && polls > 0) {
+        log("still waiting for an active round…");
+      }
+      polls += 1;
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+  }
+}
+
+/** The feed's live round state (GET /api/feed/state), as the operator API proxies it. */
+export interface FeedRoundStateInfo {
+  round: number;
+  mode: "synthetic" | "recorded";
+  paused: boolean;
+  speed: number;
+  loops: number;
+  /** Lowercased market symbol (synthetic rounds; null for recorded). */
+  symbol: string | null;
+  /** Full stream names broadcast this round (e.g. btcusdt@aggTrade) — what to subscribe to. */
+  streams: string[];
+}
+
+/**
+ * Best-effort read of the feed's live state — the round's market identity (symbol/streams), replay
+ * mode, and speed. Returns null when the feed isn't broadcasting yet (or the endpoint is older and
+ * doesn't expose it); the bot then falls back to its configured stream.
+ */
+export async function fetchFeedState(operatorApiUrl: string): Promise<FeedRoundStateInfo | null> {
+  try {
+    const res = await fetch(`${operatorApiUrl}/api/feed/state`);
+    if (!res.ok) {
+      return null;
+    }
+    const body = (await res.json()) as { activeRound?: FeedRoundStateInfo | null } | null;
+    const active = body?.activeRound ?? null;
+    if (!active || typeof active.round !== "number") {
+      return null;
+    }
+    return {
+      round: active.round,
+      mode: active.mode === "recorded" ? "recorded" : "synthetic",
+      paused: Boolean(active.paused),
+      speed: typeof active.speed === "number" ? active.speed : 1,
+      loops: typeof active.loops === "number" ? active.loops : 0,
+      symbol: typeof active.symbol === "string" ? active.symbol : null,
+      streams: Array.isArray(active.streams) ? active.streams.filter((s): s is string => typeof s === "string") : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Same deployment + round? Used to detect an organizer redeploy (competition reset) that happened
  * while the bot was waiting or running — addresses compared case-insensitively.
  */

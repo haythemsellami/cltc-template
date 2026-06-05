@@ -24,18 +24,29 @@ cp ../.env.example ../.env          # then fill in the values the organizer gave
 npm start
 ```
 
-That, in order: resolves the active round from the operator API → waits for a little MON (≥0.5,
-just gas) → **registers your team** (`TEAM_NAME`) so you appear on the organizer's roster → waits
-for the round funding (the organizer mints CASH/ASSET — and usually more MON — against that
-roster) → deploys your venue → max-approves it for CASH+ASSET (your inventory stays in your
-wallet) → registers the venue → seeds the first quote → then loops, re-quoting from your strategy.
-`Ctrl+C` prints a summary (quotes pushed, swaps served, balances).
+That, in order: **listens until the organizer has an active round** (start it any time — even days
+early; it prints the round's details the moment it goes live: CASH/ASSET token addresses, the
+recommended initial capital, and the feed's market/symbol/streams) → **waits for your manual team
+registration** — open the maker dashboard's Register tab, connect THIS bot's wallet (the printed
+address), and sign "Register team"; the bot polls the on-chain roster until you appear → waits for
+the round funding (the organizer mints CASH/ASSET — and MON — against that roster) → deploys your
+venue → max-approves it for CASH+ASSET (your inventory stays in your wallet) → registers the venue
+→ seeds the first quote → then loops, re-quoting from your strategy. `Ctrl+C` prints a summary
+(quotes pushed, swaps served, balances).
+
+> **Why the bot's wallet?** The registry enrolls whoever signs `registerMarketMaker`, and your
+> venue's owner must be that same enrolled address. So register with the SAME key the bot runs on:
+> either set `PRIVATE_KEY` to a key your browser wallet holds, or import the generated `.venue-key`
+> into your wallet before registering.
+
+The feed subscription follows the round automatically (the bot reads the live symbol/streams from
+the operator API); set `FEED_PRICE_STREAM` only to pin a specific stream.
 
 Re-running deploys a **fresh** venue. To keep market-making the **same** venue across restarts, pass
 its address:
 
 ```sh
-VENUE=0xYourVenue npm start     # skip deploy/fund; just register (idempotent) + quote
+VENUE=0xYourVenue npm start     # skip deploy/fund; just re-link the venue + quote
 ```
 
 ## Configuration
@@ -52,7 +63,8 @@ the RPC URL, and funds your address.
 | `--feed-stream` | `FEED_PRICE_STREAM` | `btcusdt@aggTrade` | which stream to price off |
 | `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC |
 | `--chain-id` | `CHAIN_ID` | `10143` | Monad testnet chain id |
-| `--team` | `TEAM_NAME` | `my-team` | your venue's on-chain team name |
+| `--team` | `TEAM_NAME` | `my-team` | fallback venue label — your ROSTER name is what you registered on the dashboard |
+| `--dashboard-url` | `DASHBOARD_URL` | `http://localhost:5176` | the maker dashboard (where you register your team) |
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
