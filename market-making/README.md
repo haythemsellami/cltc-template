@@ -39,8 +39,10 @@ venue → max-approves it for CASH+ASSET (your inventory stays in your wallet) �
 > either set `PRIVATE_KEY` to a key your browser wallet holds, or import the generated `.venue-key`
 > into your wallet before registering.
 
-The feed subscription follows the round automatically (the bot reads the live symbol/streams from
-the operator API); set `FEED_PRICE_STREAM` only to pin a specific stream.
+The feed subscription follows the round automatically — the bot subscribes by stream *kind*
+(`?kinds=aggTrade`), so it receives whatever market symbol the live round emits and keeps tracking
+across round changes. Set `FEED_PRICE_STREAM=<symbol>@<kind>` only to pin one exact stream (or
+against an older feed server without `?kinds=` support).
 
 Re-running deploys a **fresh** venue. To keep market-making the **same** venue across restarts, pass
 its address:

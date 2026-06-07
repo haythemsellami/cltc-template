@@ -5,8 +5,11 @@ import { parseUnits } from "viem";
 
 /**
  * Subscribes to the organizer's public `/stream` as just another consumer — exactly like the taker
- * agents and the operator's price tracker. Tracks the latest price (WAD) and the active round, and
- * emits:
+ * agents and the operator's price tracker. By default it subscribes by stream KIND ("aggTrade"),
+ * which follows whatever market symbol the active round emits — you never hardcode a symbol, and
+ * the bot keeps tracking across round changes. Passing a full stream name ("btcusdt@aggTrade")
+ * pins that exact stream instead (also what older feed servers without ?kinds= support need).
+ * Tracks the latest price (WAD) and the active round, and emits:
  *   - "tick"        (priceWad: bigint)
  *   - "round-start" (round: number | null)
  *   - "round-end"   (round: number | null)
@@ -23,7 +26,8 @@ export class FeedClient extends EventEmitter {
 
   constructor(
     private readonly wsUrl: string,
-    private readonly stream: string,
+    /** A bare kind ("aggTrade") to follow the live round, or a full "symbol@kind" to pin one. */
+    private readonly streamOrKind: string,
     private readonly label = "market-maker",
   ) {
     super();
@@ -54,7 +58,11 @@ export class FeedClient extends EventEmitter {
     if (this.closed) {
       return;
     }
-    const url = `${this.wsUrl}?streams=${encodeURIComponent(this.stream)}&label=${encodeURIComponent(this.label)}`;
+    // No "@" => a bare kind: subscribe symbol-agnostically (?kinds=) and follow the live round.
+    const param = this.streamOrKind.includes("@")
+      ? `streams=${encodeURIComponent(this.streamOrKind)}`
+      : `kinds=${encodeURIComponent(this.streamOrKind)}`;
+    const url = `${this.wsUrl}?${param}&label=${encodeURIComponent(this.label)}`;
     const ws = new WebSocket(url);
     this.ws = ws;
     ws.on("open", () => {
@@ -89,6 +97,14 @@ export class FeedClient extends EventEmitter {
       this.roundActive = true;
       this.round = typeof frame.round === "number" ? frame.round : null;
       this.emit("round-start", this.round);
+      return;
+    }
+    if (frame.event === "round-active") {
+      // One-off snapshot for consumers that connect MID-round (they missed round-start). Adopt the
+      // live round so isRoundActive() is truthful, but don't emit "round-start" — a reconnect must
+      // not retrigger anything your strategy keys off a genuine round boundary.
+      this.roundActive = true;
+      this.round = typeof frame.round === "number" ? frame.round : this.round;
       return;
     }
     if (frame.event === "round-end") {

@@ -17,10 +17,9 @@ export interface BotConfig {
   operatorApiUrl: string;
   /** Market-data WebSocket. The organizer gives you this. */
   feedWsUrl: string;
-  /** Which stream to track for the price (e.g. btcusdt@aggTrade or btcusdt@bookTicker). */
+  /** What to track for the price: a bare KIND ("aggTrade"/"bookTicker") follows the live round's
+   *  symbol automatically; a full "symbol@kind" pins one exact stream (legacy feed servers). */
   feedPriceStream: string;
-  /** True when FEED_PRICE_STREAM/--feed-stream was set explicitly — disables round auto-detection. */
-  feedStreamExplicit: boolean;
   /** The maker dashboard URL — where you register your team (printed in the registration gate). */
   dashboardUrl: string;
   /** Fallback venue label only — your ROSTER name is whatever you registered on the dashboard. */
@@ -107,8 +106,7 @@ export function loadConfig(argv: string[] = []): BotConfig {
     chainId: num("--chain-id", "CHAIN_ID", 10143),
     operatorApiUrl: pick("--operator-url", "OPERATOR_API_URL", "http://localhost:8080").replace(/\/$/, ""),
     feedWsUrl: pick("--feed-ws", "FEED_WS_URL", "ws://localhost:7777/stream"),
-    feedPriceStream: pick("--feed-stream", "FEED_PRICE_STREAM", "btcusdt@aggTrade"),
-    feedStreamExplicit: flags.has("--feed-stream") || Boolean(process.env.FEED_PRICE_STREAM),
+    feedPriceStream: pick("--feed-stream", "FEED_PRICE_STREAM", "aggTrade"),
     dashboardUrl: pick("--dashboard-url", "DASHBOARD_URL", "http://localhost:5176").replace(/\/$/, ""),
     teamName: pick("--team", "TEAM_NAME", "my-team"),
     privateKey: keyRaw ? (keyRaw as Hex) : null,

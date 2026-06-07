@@ -6,7 +6,7 @@ import { accountFromKey, createReadClient, createWalletClientFor, generatePrivat
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
 import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
-import { fetchFeedState, fetchRoundContext, sameRoundContext, waitForRoundContext, type FeedRoundStateInfo } from "./manifest.js";
+import { fetchFeedState, fetchRoundContext, sameRoundContext, waitForRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
 import type { Hex, QuoterState, RoundContext } from "./types.js";
@@ -59,23 +59,6 @@ async function waitForFirstPrice(feed: FeedClient, timeoutMs: number): Promise<b
     await sleep(250);
   }
   return feed.latestPriceWad();
-}
-
-/**
- * Which feed stream to track. An explicit FEED_PRICE_STREAM/--feed-stream always wins; otherwise
- * prefer what the round is actually broadcasting (the feed state's stream list), so the bot follows
- * the round's market without you re-configuring SYMBOL per round.
- */
-function resolveFeedStream(cfg: BotConfig, feedState: FeedRoundStateInfo | null): string {
-  if (cfg.feedStreamExplicit) {
-    return cfg.feedPriceStream;
-  }
-  const fromRound = feedState?.streams.find((s) => s.endsWith("@aggTrade")) ?? feedState?.streams[0];
-  if (fromRound && fromRound !== cfg.feedPriceStream) {
-    log(`feed stream auto-detected from the round: ${fromRound} (set FEED_PRICE_STREAM to override)`);
-    return fromRound;
-  }
-  return cfg.feedPriceStream;
 }
 
 /**
@@ -165,10 +148,11 @@ export async function run(cfg: BotConfig): Promise<void> {
   };
   printCtx();
 
-  // The feed subscription follows the round's actual market (unless you pinned FEED_PRICE_STREAM).
-  const feedStream = resolveFeedStream(cfg, feedState);
-  log(`feed        : ${cfg.feedWsUrl}  stream=${feedStream}`);
-  const feed = new FeedClient(cfg.feedWsUrl, feedStream, `mm:${cfg.teamName}`);
+  // Subscribing by KIND (no symbol) — the feed delivers whatever market the live round emits, and
+  // keeps doing so across round changes. Pin FEED_PRICE_STREAM=<symbol>@<kind> only against an
+  // older feed server without ?kinds= support.
+  log(`feed        : ${cfg.feedWsUrl}  ${cfg.feedPriceStream.includes("@") ? `stream=${cfg.feedPriceStream} (pinned)` : `kind=${cfg.feedPriceStream} (follows the round)`}`);
+  const feed = new FeedClient(cfg.feedWsUrl, cfg.feedPriceStream, `mm:${cfg.teamName}`);
   feed.start();
 
   // Rolling window of recent feed prices, handed to your strategy each quote (oldest → newest).
