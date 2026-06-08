@@ -35,8 +35,9 @@ bot both count. Anything that scores higher within the rule above wins.
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (for the contract)
 - [Node.js](https://nodejs.org) ≥ 20 (for the bot)
-- A Monad-testnet wallet key. The **organizer** funds your address with CASH + ASSET + MON and gives
-  you the `OPERATOR_API_URL`, `FEED_WS_URL`, and RPC URL.
+- A Monad-testnet wallet key. The **organizer** funds your address with CASH + ASSET + MON, grants
+  you tailnet access to the competition host, and gives you the RPC URL. The bot's
+  `OPERATOR_API_URL` / `FEED_WS_URL` / `DASHBOARD_URL` already default to the live host.
 
 ## Quickstart
 

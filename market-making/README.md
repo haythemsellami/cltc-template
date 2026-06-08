@@ -53,20 +53,22 @@ VENUE=0xYourVenue npm start     # skip deploy/fund; just re-link the venue + quo
 
 ## Configuration
 
-Set via `.env` (preferred) or `--flags`. The organizer gives you `OPERATOR_API_URL`, `FEED_WS_URL`,
-the RPC URL, and funds your address.
+Set via `.env` (preferred) or `--flags`. The defaults point at the **live competition host** (a
+Tailscale tailnet URL — you must be on the tailnet or have the node shared); the organizer gives you
+the RPC URL, tailnet access, and funds your address. For a local dry-run, override the URLs with the
+`localhost` ones (the organizer's `setup.sh --local`).
 
 | flag | env | default | meaning |
 |---|---|---|---|
 | `--key` | `PRIVATE_KEY` | (generate) | your venue owner / deployer key |
 | `--key-file` | `KEY_FILE` | `.venue-key` | where a generated key is stored/reused (gitignored) |
-| `--operator-url` | `OPERATOR_API_URL` | `http://localhost:8080` | reads `GET /api/manifest` |
-| `--feed-ws` | `FEED_WS_URL` | `ws://localhost:7777/stream` | market-data WebSocket |
-| `--feed-stream` | `FEED_PRICE_STREAM` | `btcusdt@aggTrade` | which stream to price off |
-| `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC |
+| `--operator-url` | `OPERATOR_API_URL` | `https://sgp-006.tail08a730.ts.net` | reads `GET /api/manifest` (BASE origin — no `/api`) |
+| `--feed-ws` | `FEED_WS_URL` | `wss://sgp-006.tail08a730.ts.net/stream` | market-data WebSocket |
+| `--feed-stream` | `FEED_PRICE_STREAM` | `aggTrade` | which stream KIND to price off (follows the live round) |
+| `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC (organizer may give you a faster endpoint) |
 | `--chain-id` | `CHAIN_ID` | `10143` | Monad testnet chain id |
 | `--team` | `TEAM_NAME` | `my-team` | fallback venue label — your ROSTER name is what you registered on the dashboard |
-| `--dashboard-url` | `DASHBOARD_URL` | `http://localhost:5176` | the maker dashboard (where you register your team) |
+| `--dashboard-url` | `DASHBOARD_URL` | `https://sgp-006.tail08a730.ts.net` | the maker dashboard (where you register your team) |
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
