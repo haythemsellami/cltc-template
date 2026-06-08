@@ -63,7 +63,7 @@ the RPC URL, and funds your address.
 | `--operator-url` | `OPERATOR_API_URL` | `http://localhost:8080` | reads `GET /api/manifest` |
 | `--feed-ws` | `FEED_WS_URL` | `ws://localhost:7777/stream` | market-data WebSocket |
 | `--feed-stream` | `FEED_PRICE_STREAM` | `btcusdt@aggTrade` | which stream to price off |
-| `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC |
+| `--rpc-url` | `RPC_URL` | `https://rpc.monad-testnet.category.xyz/rpc/QFN8omFE2Ye4cKfwqsRB6nHjtgybwTdVCdcXZic0` | Monad testnet RPC |
 | `--chain-id` | `CHAIN_ID` | `10143` | Monad testnet chain id |
 | `--team` | `TEAM_NAME` | `my-team` | fallback venue label — your ROSTER name is what you registered on the dashboard |
 | `--dashboard-url` | `DASHBOARD_URL` | `http://localhost:5176` | the maker dashboard (where you register your team) |

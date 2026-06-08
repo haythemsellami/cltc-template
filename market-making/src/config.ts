@@ -102,7 +102,7 @@ export function loadConfig(argv: string[] = []): BotConfig {
   }
 
   return {
-    rpcUrl: pick("--rpc-url", "RPC_URL", "https://testnet-rpc.monad.xyz"),
+    rpcUrl: pick("--rpc-url", "RPC_URL", "https://rpc.monad-testnet.category.xyz/rpc/QFN8omFE2Ye4cKfwqsRB6nHjtgybwTdVCdcXZic0"),
     chainId: num("--chain-id", "CHAIN_ID", 10143),
     operatorApiUrl: pick("--operator-url", "OPERATOR_API_URL", "http://localhost:8080").replace(/\/$/, ""),
     feedWsUrl: pick("--feed-ws", "FEED_WS_URL", "ws://localhost:7777/stream"),
