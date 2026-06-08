@@ -34,10 +34,14 @@ contract CompetitionPropAMMTest is Test {
         asset = new MockERC20("Competition Asset", "ASSET");
     }
 
+    /// Deploy + quote a venue. The spread is zeroed here so the price/custody tests below assert clean
+    /// mid-price math; the default 20 bps spread and `setSpreadBps` are covered in the spread section.
     function _deployQuoted() internal returns (CompetitionPropAMM venue) {
         venue = new CompetitionPropAMM("team", address(cash), address(asset), TEAM);
-        vm.prank(TEAM);
+        vm.startPrank(TEAM);
         venue.updatePrice(FAIR_PRICE, uint64(block.timestamp) + TTL);
+        venue.setSpreadBps(0);
+        vm.stopPrank();
     }
 
     function testQuoteBuyAndSellAtFairPrice() external {
@@ -121,5 +125,50 @@ contract CompetitionPropAMMTest is Test {
         // floor(999 * 1e18 / 1000e18) = 0 ASSET: must revert, not fill for nothing.
         vm.expectRevert(CompetitionPropAMM.ZeroAmount.selector);
         venue.getAmountOut(address(cash), address(asset), 999);
+    }
+
+    // --- spread (the venue ships with a default 20 bps market) -----------
+
+    /// Out of the box the venue quotes a spread: buyers pay the ask (less ASSET), sellers hit the bid
+    /// (less CASH), each side off fair by half the spread (10 bps). Tune it with setSpreadBps.
+    function testDefaultSpreadQuotesAroundFair() external {
+        CompetitionPropAMM venue = new CompetitionPropAMM("team", address(cash), address(asset), TEAM);
+        assertEq(venue.spreadBps(), 20, "default spread");
+        vm.prank(TEAM);
+        venue.updatePrice(FAIR_PRICE, uint64(block.timestamp) + TTL);
+
+        (uint256 sellOut,) = venue.getAmountOut(address(asset), address(cash), 1e18);
+        assertEq(sellOut, 999e18, "sell at the bid (1000 * 0.9990)"); // 10 bps below mid
+
+        (uint256 buyOut,) = venue.getAmountOut(address(cash), address(asset), 1_000e18);
+        assertLt(buyOut, 1e18, "buy pays the ask");
+        assertApproxEqRel(buyOut, 0.999e18, 0.001e18, "buy ~10 bps below mid");
+    }
+
+    function testSetSpreadBps() external {
+        CompetitionPropAMM venue = new CompetitionPropAMM("team", address(cash), address(asset), TEAM);
+        vm.prank(TEAM);
+        venue.updatePrice(FAIR_PRICE, uint64(block.timestamp) + TTL);
+
+        // Zero spread -> mid; 100 bps round-trip -> 50 bps per side.
+        vm.prank(TEAM);
+        venue.setSpreadBps(0);
+        (uint256 midSell,) = venue.getAmountOut(address(asset), address(cash), 1e18);
+        assertEq(midSell, 1_000e18, "mid sell at 0 spread");
+
+        vm.prank(TEAM);
+        venue.setSpreadBps(100);
+        (uint256 wideSell,) = venue.getAmountOut(address(asset), address(cash), 1e18);
+        assertEq(wideSell, 995e18, "sell at the 50 bps bid");
+
+        // Only the owner can retune, and absurd spreads are rejected.
+        vm.prank(TRADER);
+        vm.expectRevert();
+        venue.setSpreadBps(50);
+
+        uint256 max = venue.MAX_SPREAD_BPS();
+        vm.expectRevert(abi.encodeWithSelector(CompetitionPropAMM.SpreadTooWide.selector, max + 1, max));
+        vm.prank(TEAM);
+        venue.setSpreadBps(max + 1);
     }
 }
