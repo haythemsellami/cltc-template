@@ -6,7 +6,7 @@ import { accountFromKey, createReadClient, createWalletClientFor, generatePrivat
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
 import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
-import { fetchFeedState, fetchRoundContext, sameRoundContext, waitForRoundContext } from "./manifest.js";
+import { fetchFeedState, fetchRoundContext, manifestChanged, sameRoundContext, waitForRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
 import type { Hex, QuoterState, RoundContext } from "./types.js";
@@ -74,7 +74,10 @@ async function waitForTeamRegistration(deps: {
   address: Hex;
   dashboardUrl: string;
   pollMs?: number;
-}): Promise<string> {
+  /** Optional redeploy probe — returns null (instead of blocking forever) when the organizer
+   *  redeployed, so the caller re-resolves the manifest and waits on the NEW registry's roster. */
+  redeployed?: () => Promise<boolean>;
+}): Promise<string | null> {
   const { client, registry, address, dashboardUrl } = deps;
   const pollMs = deps.pollMs ?? 5_000;
 
@@ -103,6 +106,10 @@ async function waitForTeamRegistration(deps: {
       }
     } catch (error) {
       log(`  (roster read failed, retrying: ${error instanceof Error ? error.message : String(error)})`);
+    }
+    if (deps.redeployed && (await deps.redeployed())) {
+      log("  organizer redeployed — re-resolving the round before re-registering.");
+      return null;
     }
     polls += 1;
     if (polls % 12 === 0) {
@@ -165,13 +172,25 @@ export async function run(cfg: BotConfig): Promise<void> {
   });
 
   // ── registration gate (manual, via the dashboard) ──────────────────────────────────────────
+  // Self-healing: if the organizer redeploys while we wait for you to register, re-resolve the
+  // manifest and wait on the NEW registry's roster (a fresh registry starts empty).
   banner("Team registration");
-  const onChainTeamName = await waitForTeamRegistration({
-    client,
-    registry: ctx.registry,
-    address,
-    dashboardUrl: cfg.dashboardUrl,
-  });
+  let onChainTeamName: string | null = null;
+  while (onChainTeamName === null) {
+    onChainTeamName = await waitForTeamRegistration({
+      client,
+      registry: ctx.registry,
+      address,
+      dashboardUrl: cfg.dashboardUrl,
+      redeployed: () => manifestChanged(ctx, cfg.operatorApiUrl),
+    });
+    if (onChainTeamName === null) {
+      log("organizer redeployed before registration completed — re-resolving the round:");
+      ctx = await waitForRoundContext(cfg.operatorApiUrl, log);
+      feedState = await fetchFeedState(cfg.operatorApiUrl);
+      printCtx();
+    }
+  }
   // The venue's baked-in label mirrors your roster name; TEAM_NAME is only the fallback.
   const venueLabel = onChainTeamName || cfg.teamName;
 
@@ -271,7 +290,17 @@ export async function run(cfg: BotConfig): Promise<void> {
     // deploy/fund/register against a registry that no longer exists in the manifest.
     for (;;) {
       const req = computeFundingRequirement(ctx, cfg.monForGasWei);
-      await waitForFunding({ client, address, ctx, req, log, assumeFunded: cfg.assumeFunded });
+      await waitForFunding({
+        client,
+        address,
+        ctx,
+        req,
+        log,
+        assumeFunded: cfg.assumeFunded,
+        // Don't poll the old round's tokens forever if the organizer redeploys mid-wait — bail out
+        // so we re-resolve below instead of waiting on funding that will never land.
+        redeployed: () => manifestChanged(ctx, cfg.operatorApiUrl),
+      });
       const fresh = await waitForRoundContext(cfg.operatorApiUrl, log);
       if (sameRoundContext(ctx, fresh)) {
         break;
@@ -281,7 +310,13 @@ export async function run(cfg: BotConfig): Promise<void> {
       feedState = await fetchFeedState(cfg.operatorApiUrl);
       printCtx();
       // A fresh registry has an empty roster — re-register your team on the dashboard against it.
-      await waitForTeamRegistration({ client, registry: ctx.registry, address, dashboardUrl: cfg.dashboardUrl });
+      await waitForTeamRegistration({
+        client,
+        registry: ctx.registry,
+        address,
+        dashboardUrl: cfg.dashboardUrl,
+        redeployed: () => manifestChanged(ctx, cfg.operatorApiUrl),
+      });
     }
 
     // ── deploy ────────────────────────────────────────────────────────────────────────────

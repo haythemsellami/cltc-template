@@ -51,6 +51,12 @@ export interface FundingGateDeps {
   log: (message: string) => void;
   pollMs?: number;
   assumeFunded?: boolean;
+  /**
+   * Optional redeploy probe, polled each iteration. When it resolves true (the organizer reset infra
+   * / started a new round while we waited), the gate returns early instead of polling the now-dead
+   * round's tokens forever — the caller then re-resolves the manifest and re-gates.
+   */
+  redeployed?: () => Promise<boolean>;
 }
 
 /**
@@ -167,6 +173,10 @@ export async function waitForFunding(deps: FundingGateDeps): Promise<void> {
       }
       if (manualContinue) {
         log("Manual override — continuing despite unmet thresholds.");
+        return;
+      }
+      if (deps.redeployed && (await deps.redeployed())) {
+        log("Organizer redeployed while we waited — leaving the funding gate to re-resolve the round.");
         return;
       }
       await sleep(pollMs);

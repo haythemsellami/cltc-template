@@ -137,3 +137,17 @@ export function sameRoundContext(a: RoundContext, b: RoundContext): boolean {
     eq(a.assetToken, b.assetToken)
   );
 }
+
+/**
+ * True when the live manifest's round context differs from `ctx` — i.e. the organizer redeployed
+ * infra / started a new round while the bot was blocked in a wait. Best-effort: returns false when
+ * the manifest is briefly unavailable (mid-reset / between rounds), so a transient blip never yanks
+ * the bot out of a gate; the next poll re-checks.
+ */
+export async function manifestChanged(ctx: RoundContext, operatorApiUrl: string): Promise<boolean> {
+  try {
+    return !sameRoundContext(ctx, await fetchRoundContext(operatorApiUrl));
+  } catch {
+    return false;
+  }
+}
