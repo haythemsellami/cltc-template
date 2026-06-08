@@ -26,8 +26,9 @@ import {IPropAMMPeriphery} from "./interfaces/IPropAMMPeriphery.sol";
 ///      and a fill your wallet can't cover reverts. Switching venues
 ///      mid-round is deploy -> approve -> re-register: your inventory never moves. The off-chain bot
 ///      in ../market-making decides what price to publish and when. PnL is scored off-chain from
-///      your wallet's token balances marked at the official feed price, minus the gas you spend —
-///      that is the only rule.
+///      your wallet's token balances marked at the official feed price, netted against your starting
+///      capital; MON is a separate per-round budget (you self-eliminate if you run out), not
+///      deducted from PnL.
 contract CompetitionPropAMM is IPropAMMPeriphery, Ownable {
     using SafeERC20 for IERC20;
 
