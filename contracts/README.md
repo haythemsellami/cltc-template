@@ -43,8 +43,10 @@ This is how `CompetitionPropAMM` behaves as shipped — each of these is a desig
   per ASSET (1e18 = 1.0), the same scale as the market feed. `validUntil` is an absolute unix
   timestamp — past it, the quote is expired and nothing fills. (Want quotes that never expire, or a
   different curve? Change it.)
-- **Fills:** every swap executes at exactly `fairPrice` — `CASH→ASSET` divides by it, `ASSET→CASH`
-  multiplies by it. **No spread, no size cap, no inventory band.** Inventory stays in YOUR wallet
+- **Fills:** every swap executes at `fairPrice` adjusted by half the spread on the relevant side —
+  `CASH→ASSET` divides by the ask, `ASSET→CASH` multiplies by the bid, so a round-trip costs
+  `spreadBps`. **Default 20 bps spread (settable via `setSpreadBps`; 0 = mid), no size cap, no
+  inventory band.** Inventory stays in YOUR wallet
   (maker custody): a swap routes `tokenIn` to the owner and pays `tokenOut` from the owner via the
   allowance you max-approved after deploying — a fill your balance/allowance can't cover just
   reverts. (Add your own spread/skew or inventory rules here.)

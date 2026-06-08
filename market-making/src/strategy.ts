@@ -4,9 +4,10 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //
 //  Every quote cycle the bot calls `decideFairPrice(tick)` and pushes the result on-chain via
-//  `updatePrice(fairPrice, validUntil)`. With the reference venue, that price is the single price
-//  every swap fills at (no spread). The off-chain scorer marks your CASH + ASSET inventory at the
-//  official feed price, so your PnL is driven by what price you quote relative to the market:
+//  `updatePrice(fairPrice, validUntil)`. With the reference venue, swaps fill at a default 20 bps
+//  spread around that mid (buyers pay the ask, sellers hit the bid; retune on-chain via
+//  `setSpreadBps`). The off-chain scorer marks your CASH + ASSET inventory at the official feed
+//  price, so your PnL is driven by what price you quote relative to the market:
 //
 //    • quote ABOVE the feed  → you sell ASSET dear / buy it cheap, but informed takers pick you off
 //    • quote BELOW the feed  → you fill more flow, but give up edge

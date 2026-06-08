@@ -77,9 +77,10 @@ the RPC URL, and funds your address.
 
 ## Writing a strategy
 
-`decideFairPrice(tick)` returns a WAD-scaled CASH-per-ASSET price the venue fills every swap at.
-There's no spread — your PnL comes from *where* you quote vs. the feed (the scorer marks your
-inventory at the feed price). The `tick` gives you the latest feed price, a rolling window of recent
+`decideFairPrice(tick)` returns a WAD-scaled CASH-per-ASSET mid price; the venue quotes a default
+20 bps spread around it (retune on-chain via `setSpreadBps`). Your PnL comes from *where* you quote
+vs. the feed **and** how wide your spread is — you earn it on two-way flow and pay it to informed
+takers (the scorer marks your inventory at the feed price). The `tick` gives you the latest feed price, a rolling window of recent
 prices, your last fair price, and whether a round is live; `strategy.ts` ships `applyBps`,
 `momentumBps`, and `clamp` helpers plus commented examples (fixed skew, momentum lean, smoothing).
 

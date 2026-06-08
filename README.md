@@ -70,8 +70,9 @@ summary. Re-running deploys a fresh venue; pass `VENUE=0x…` to keep market-mak
 Two surfaces, both yours to change — start from the working defaults and improve whichever you like:
 
 - **The venue** — [`contracts/src/CompetitionPropAMM.sol`](contracts/src/CompetitionPropAMM.sol). The
-  reference fills at one `fairPrice` with no spread or inventory limits and expires quotes at
-  `validUntil`. Change any of it: your own pricing curve, spread/skew, fill rules, inventory
+  reference quotes a symmetric spread (default 20 bps, settable via `setSpreadBps`) around one
+  `fairPrice`, with no inventory limits, and expires quotes at `validUntil`. Change any of it: your
+  own pricing curve, a wider/asymmetric spread or skew, fill rules, inventory
   management, expiry policy (or no expiry). Just keep it implementing `IPropAMMPeriphery` so the
   router can route to it, then re-run `forge build` — the bot picks up your new bytecode automatically.
 - **The bot** — [`market-making/src/strategy.ts`](market-making/src/strategy.ts). `decideFairPrice(tick)`
