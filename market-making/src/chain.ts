@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  Monad-testnet chain definition + the bot's signing identity. The wallet built here IS your
+//  registered market maker: the registry enrolls it, your venue is owned by it, and funding +
+//  PnL are computed against it. Your edge belongs in src/strategy.ts / src/quoter.ts.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import {
   createPublicClient,
   createWalletClient,

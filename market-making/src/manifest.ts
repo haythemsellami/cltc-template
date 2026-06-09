@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  The operator API's manifest is the single source of deployment truth: every round issues FRESH
+//  CASH/ASSET tokens, and your registration lives on the manifest's registry. Hardcoding
+//  addresses or resolving them anywhere else breaks at the next round (or after an organizer
+//  redeploy). Your edge belongs in src/strategy.ts / src/quoter.ts / ../contracts, not here.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import type { DeploymentManifest, RoundContext } from "./types.js";
 
 /**

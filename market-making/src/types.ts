@@ -1,5 +1,9 @@
 // Standalone types for the market-making bot. On-chain bigints stay bigint in memory; only the CLI
 // and wire boundaries format them.
+//
+// COMPETITION PLUMBING — these shapes are shared by the plumbing modules (manifest, funding,
+// venue, lifecycle). Extend them (add fields for your strategy's signals) rather than changing
+// existing fields.
 
 export type Hex = `0x${string}`;
 

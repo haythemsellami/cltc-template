@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  YOURS TO TUNE — WHEN to push a quote lives here (your PRICE lives in src/strategy.ts).
+//  Replace the policy below freely (e.g. requote on volatility, on inventory, on book skew).
+//  Keep the shouldRequote() signature — lifecycle.ts calls it every second — and remember each
+//  push is an on-chain updatePrice that spends your fixed MON budget: quote often enough that
+//  your TTL never lapses mid-round, but no more than your edge is worth.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import type { QuoterState } from "./types.js";
 
 export interface RequoteOpts {

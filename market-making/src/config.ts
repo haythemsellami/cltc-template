@@ -1,3 +1,11 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING (structure) / YOUR KNOBS (values).
+//  Tune the VALUES freely — in .env, not here: TTL_SECONDS, REQUOTE_SECS, REQUOTE_BPS,
+//  FALLBACK_PRICE, MON_FOR_GAS, TEAM_NAME. The parsing/shape stays, and the endpoint vars
+//  (OPERATOR_API_URL, FEED_WS_URL, RPC_URL, CHAIN_ID) must keep pointing at the organizer's
+//  infra — quoting off any other data source is outside the competition rules.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import { fileURLToPath } from "node:url";
 
 import { config as loadEnv } from "dotenv";

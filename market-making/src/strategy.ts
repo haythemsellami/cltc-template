@@ -14,6 +14,10 @@
 //    • quote AT the feed      → the neutral baseline (the default below)
 //
 //  Prices are WAD-scaled: 1e18 == 1.0 CASH per ASSET. Helpers below keep the bigint math readable.
+//
+//  Edit surfaces: THIS file (price), src/quoter.ts (when to re-quote), the .env knobs, and the
+//  venue contract in ../contracts. Everything else in src/ is competition plumbing (feed, manifest,
+//  registration, funding, lifecycle) — see the KEEP-AS-IS banners in those files.
 
 /** Everything you know at quote time. Extend the bot if you want more signals (e.g. your inventory). */
 export interface MarketTick {

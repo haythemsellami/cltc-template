@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  Gates that wait for your on-chain enrollment and the organizer's funding mints (CASH/ASSET +
+//  the MON gas budget). Skipping or weakening these gates gains nothing — an unenrolled or
+//  unfunded maker simply reverts at deploy/quote time. The amounts are knobs, not the gates.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import { createInterface } from "node:readline";
 
 import { formatEther, formatUnits, type PublicClient } from "viem";

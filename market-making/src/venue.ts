@@ -1,3 +1,13 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  Deploy → max-approve → register mechanics; each step is a competition requirement, not a
+//  convenience: the venue must be OWNED by your enrolled wallet (the registry checks owner()),
+//  max-APPROVED for CASH + ASSET (maker custody — the venue pays fills from YOUR wallet via this
+//  allowance; without it every swap reverts and you serve zero flow), and REGISTERED (takers only
+//  route to registered venues). If you customize the venue contract, adapt the constructor args
+//  here — keep the flow itself intact.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import type { PublicClient, WalletClient } from "viem";
 
 import { registryAbi, tokenAbi, venueAbi, venueBytecode } from "./abi.js";

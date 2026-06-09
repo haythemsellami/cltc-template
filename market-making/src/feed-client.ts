@@ -1,3 +1,14 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  The organizer's /stream WebSocket is the ONLY allowed market-data source, and the scorer marks
+//  your inventory at exactly this feed's (post-transform) price — quote off anything else and you
+//  are pricing in data the round is not scored in. Subscribe-by-KIND and the round-state frames
+//  must stay: they follow each round's symbol automatically and stop quoting between rounds
+//  (every needless updatePrice burns your fixed MON budget).
+//  Your edge belongs in src/strategy.ts (price), src/quoter.ts (re-quote policy), the .env knobs,
+//  and ../contracts (your venue). Edits here risk non-compliance, not advantage.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import { EventEmitter } from "node:events";
 
 import { WebSocket } from "ws";

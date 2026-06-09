@@ -1,3 +1,12 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  Loads the venue ABI/bytecode straight from ../contracts/out so the contract you deploy is the
+//  one source of truth. Customizing the venue CONTRACT is allowed and encouraged — but it must
+//  keep implementing IPropAMMPeriphery (or Monoper cannot quote/route to you = zero flow) and
+//  expose Ownable's owner() (the registry checks it at registerVenue). The registry/token ABIs
+//  below must match the organizer's deployed contracts — do not edit them.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

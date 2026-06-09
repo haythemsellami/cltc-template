@@ -1,3 +1,13 @@
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
+//  The orchestration order here mirrors the competition's onboarding requirements:
+//  active round → enroll (manual, dashboard) → funding → deploy venue → max-approve → register →
+//  quote loop (+ self-healing across organizer redeploys, and quote-pausing between rounds).
+//  The INTENDED hooks are the two calls into your code — decideFairPrice() (src/strategy.ts, the
+//  price) and shouldRequote() (src/quoter.ts, the cadence) — plus the .env knobs. Change those,
+//  not this flow: reordering or removing steps produces a venue that can't fill or isn't scored.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 import { formatEther, formatUnits, parseEther, type Account, type PublicClient, type WalletClient } from "viem";

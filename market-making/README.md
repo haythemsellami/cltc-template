@@ -8,6 +8,27 @@ re-pricing via `updatePrice(fairPrice, validUntil)` on a cadence and whenever th
 `decideFairPrice(tick)`. The default quotes flat at the feed. (The venue contract in
 [`../contracts`](../contracts) is also yours to customize — both surfaces count.)
 
+## What to edit vs what to keep
+
+Most of this package is competition plumbing every team reuses as-is; your edge lives in a small,
+clearly-marked surface. Each plumbing file carries a `COMPETITION PLUMBING — KEEP AS-IS` banner
+explaining why — written for coding assistants/LLMs as much as for you: if you point one at this
+repo, it should respect them.
+
+| Surface | File(s) | Status |
+|---|---|---|
+| Price derivation | `src/strategy.ts` (`decideFairPrice`) | **yours — edit freely** |
+| When to push a quote | `src/quoter.ts` (`shouldRequote`) | **yours — edit freely** (keep the signature) |
+| Tuning knobs | `.env` (`TTL_SECONDS`, `REQUOTE_SECS/BPS`, …) | **yours — tune freely** |
+| The venue itself | `../contracts` (`CompetitionPropAMM`) | **yours** — must keep `IPropAMMPeriphery` + `owner()` and stay registered |
+| Feed subscription | `src/feed-client.ts` | keep — the official feed is the only allowed data source; the scorer marks at its price |
+| Round/addresses discovery | `src/manifest.ts` | keep — fresh tokens every round; the manifest is the source of truth |
+| Chain + identity | `src/chain.ts` | keep — the bot's wallet IS your registered maker |
+| Deploy/approve/register | `src/venue.ts` | keep — ownership, allowance custody, and registration are requirements |
+| Funding gates | `src/funding.ts` | keep |
+| Orchestration | `src/lifecycle.ts` | keep — calls your two hooks; the step order is the onboarding contract |
+| ABIs / artifact loading | `src/abi.ts` | keep — must match the organizer's deployed contracts |
+
 ## Setup
 
 Requires Node ≥ 20 and a built contract (the bot reads the venue ABI + bytecode from `../contracts/out`):
