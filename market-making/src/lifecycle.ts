@@ -370,11 +370,18 @@ export async function run(cfg: BotConfig): Promise<void> {
     state.lastQuoteMs = null; // force an immediate re-quote at the new round's price
   });
   feed.on("round-end", (round: number | null) => {
-    log(`feed: round ${round ?? "?"} ended`);
+    log(`feed: round ${round ?? "?"} ended — pausing quotes until the next round (saving your MON budget)`);
   });
 
   async function maybeQuote(): Promise<void> {
     if (stopped || inFlight || !venue) {
+      return;
+    }
+    // No live round = nothing to make a market for: every updatePrice would just burn your fixed
+    // MON budget. Gate only when the feed actually signals rounds (the organizer feed does; a raw
+    // Binance practice stream doesn't, and keeps quoting freely). The last quote expires on its
+    // own TTL; round-start clears lastQuoteMs so quoting resumes immediately.
+    if (feed.hasRoundSignal() && !feed.isRoundActive()) {
       return;
     }
     const price = feed.latestPriceWad();

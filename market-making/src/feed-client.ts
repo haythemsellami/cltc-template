@@ -23,6 +23,7 @@ export class FeedClient extends EventEmitter {
   private priceWad: bigint | null = null;
   private roundActive = false;
   private round: number | null = null;
+  private sawRoundFrame = false;
 
   constructor(
     private readonly wsUrl: string,
@@ -48,6 +49,15 @@ export class FeedClient extends EventEmitter {
 
   isRoundActive(): boolean {
     return this.roundActive;
+  }
+
+  /**
+   * Whether this feed signals rounds at all (any round-start / round-active / round-end seen).
+   * The organizer feed always does; a raw Binance stream (practice mode) never does — consumers
+   * use this to apply round gating only where rounds exist.
+   */
+  hasRoundSignal(): boolean {
+    return this.sawRoundFrame;
   }
 
   latestPriceWad(): bigint | null {
@@ -94,6 +104,7 @@ export class FeedClient extends EventEmitter {
     }
 
     if (frame.event === "round-start") {
+      this.sawRoundFrame = true;
       this.roundActive = true;
       this.round = typeof frame.round === "number" ? frame.round : null;
       this.emit("round-start", this.round);
@@ -103,11 +114,13 @@ export class FeedClient extends EventEmitter {
       // One-off snapshot for consumers that connect MID-round (they missed round-start). Adopt the
       // live round so isRoundActive() is truthful, but don't emit "round-start" — a reconnect must
       // not retrigger anything your strategy keys off a genuine round boundary.
+      this.sawRoundFrame = true;
       this.roundActive = true;
       this.round = typeof frame.round === "number" ? frame.round : this.round;
       return;
     }
     if (frame.event === "round-end") {
+      this.sawRoundFrame = true;
       const ended = this.round;
       this.roundActive = false;
       this.emit("round-end", ended);
