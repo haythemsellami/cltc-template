@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //  COMPETITION PLUMBING — KEEP AS-IS (note for engineers AND coding assistants/LLMs).
 //  The orchestration order here mirrors the competition's onboarding requirements:
-//  active round → enroll (manual, dashboard) → funding → deploy venue → max-approve → register →
-//  quote loop (+ self-healing across organizer redeploys, and quote-pausing between rounds).
+//  MON gas → enroll (the bot self-registers TEAM_NAME) → active round → CASH/ASSET funding →
+//  deploy venue → max-approve → register venue → quote loop (+ self-healing across organizer
+//  redeploys, and quote-pausing between rounds).
 //  The INTENDED hooks are the two calls into your code — decideFairPrice() (src/strategy.ts, the
 //  price) and shouldRequote() (src/quoter.ts, the cadence) — plus the .env knobs. Change those,
 //  not this flow: reordering or removing steps produces a venue that can't fill or isn't scored.
@@ -16,7 +17,7 @@ import { accountFromKey, createReadClient, createWalletClientFor, generatePrivat
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
 import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
-import { fetchFeedState, fetchRoundContext, manifestChanged, sameRoundContext, waitForRoundContext } from "./manifest.js";
+import { fetchFeedState, fetchRoundContext, manifestChanged, sameRoundContext, waitForRegistry, waitForRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
 import type { Hex, QuoterState, RoundContext } from "./types.js";
@@ -88,11 +89,10 @@ async function waitForFirstPrice(feed: FeedClient, timeoutMs: number): Promise<b
 }
 
 /**
- * Team registration is MANUAL: you sign `registerMarketMaker(teamName)` on the maker dashboard's
- * Register tab — with THIS bot's wallet (the registry enrolls msg.sender, and your venue's owner
- * must be the enrolled maker). The bot just waits for its address to appear on the roster, then
- * reads back the team name you chose. Costs the bot nothing — the registration gas is paid by the
- * wallet in your browser.
+ * FALLBACK manual registration: normally the bot self-registers (ensureRegistered), but if that
+ * transaction fails this waits for you to sign `registerMarketMaker(teamName)` on the maker
+ * dashboard's Register tab — with THIS bot's wallet (the registry enrolls msg.sender, and your
+ * venue's owner must be the enrolled maker).
  */
 async function waitForTeamRegistration(deps: {
   client: PublicClient;
@@ -160,11 +160,58 @@ export async function run(cfg: BotConfig): Promise<void> {
     log("");
     log("━━ Share this address with the organizer (internal channel) so they can fund it ━━");
     log(`    ${address}`);
-    if (cfg.autoRegister) {
-      log(`    The bot self-registers as "${cfg.teamName}" the moment MON gas arrives.`);
-    }
     log("");
   }
+
+  /** Make sure this wallet is enrolled on `registry` — self-registers TEAM_NAME (the bot's own
+   *  transaction) and falls back to the manual dashboard flow only if that tx fails. */
+  async function ensureRegistered(registry: Hex): Promise<string> {
+    if (await isMarketMakerRegistered(client, registry, address).catch(() => false)) {
+      const name = (await readTeamName(client, registry, address).catch(() => null)) || cfg.teamName;
+      log(`on the roster as "${name}" ✓`);
+      return name;
+    }
+    if (cfg.teamName === "my-team") {
+      log('note: TEAM_NAME is still the default "my-team" — set it in .env for a real name');
+    }
+    try {
+      log(`registering team "${cfg.teamName}" (the bot's first transaction)…`);
+      await registerTeam(wallet, client, registry, cfg.teamName);
+      log(`team registered as "${cfg.teamName}" ✓ — the organizer can now fund this address`);
+      return cfg.teamName;
+    } catch (e) {
+      log(`self-registration failed (${e instanceof Error ? e.message : String(e)}) — falling back to the dashboard flow`);
+      const name = await waitForTeamRegistration({ client, registry, address, dashboardUrl: cfg.dashboardUrl });
+      return name || cfg.teamName;
+    }
+  }
+
+  // ── gas gate ────────────────────────────────────────────────────────────────────────────────
+  // Registration is the bot's first on-chain transaction, so ANY MON unlocks the flow. The
+  // organizer just sends gas to the printed address; everything after is automatic.
+  banner("Waiting for MON gas");
+  if (cfg.assumeFunded) {
+    log("--assume-funded: skipping the gas gate.");
+  } else {
+    log("Send MON (any amount) to this address — the bot registers your team the moment it lands:");
+    log(`  ${address}`);
+    let gasPolls = 0;
+    while ((await client.getBalance({ address })) === 0n) {
+      gasPolls += 1;
+      if (gasPolls % 12 === 0) {
+        log("  still waiting for MON…");
+      }
+      await sleep(5_000);
+    }
+    log("MON received ✓");
+  }
+
+  // ── team registration (registry-level — happens BEFORE any round exists) ───────────────────
+  // Registering early puts this wallet on the roster the organizer funds against, so when a round
+  // starts the bot only has to wait for its CASH/ASSET to arrive.
+  banner("Team registration");
+  const earlyRegistry = await waitForRegistry(cfg.operatorApiUrl, log);
+  await ensureRegistered(earlyRegistry);
 
   // ── round gate ─────────────────────────────────────────────────────────────────────────────
   // The bot idles here until the organizer has an active round — `npm start` any time, even days
@@ -206,43 +253,11 @@ export async function run(cfg: BotConfig): Promise<void> {
     }
   });
 
-  // ── registration gate (manual, via the dashboard) ──────────────────────────────────────────
-  // Self-healing: if the organizer redeploys while we wait for you to register, re-resolve the
-  // manifest and wait on the NEW registry's roster (a fresh registry starts empty).
-  banner("Team registration");
-  let onChainTeamName: string | null = null;
-  while (onChainTeamName === null) {
-    // --auto-register: instead of waiting for a manual dashboard signature, the bot enrolls
-    // itself with TEAM_NAME once it has gas (registration is its first on-chain transaction, so
-    // the organizer only needs to send MON to the printed address). Runs inside the redeploy
-    // loop, so a fresh registry gets re-registered too.
-    if (cfg.autoRegister && !(await isMarketMakerRegistered(client, ctx.registry, address).catch(() => false))) {
-      log(`auto-register: enrolling as "${cfg.teamName}" — waiting for MON gas first`);
-      if (cfg.teamName === "my-team") {
-        log("  (TEAM_NAME is still the default \"my-team\" — set it in .env for a real name)");
-      }
-      await waitForGas({ client, address, monWei: cfg.monForGasWei, log, assumeFunded: cfg.assumeFunded });
-      try {
-        await registerTeam(wallet, client, ctx.registry, cfg.teamName);
-        log(`auto-register: enrolled as "${cfg.teamName}" ✓`);
-      } catch (e) {
-        log(`auto-register failed (${e instanceof Error ? e.message : String(e)}) — falling back to the dashboard flow`);
-      }
-    }
-    onChainTeamName = await waitForTeamRegistration({
-      client,
-      registry: ctx.registry,
-      address,
-      dashboardUrl: cfg.dashboardUrl,
-      redeployed: () => manifestChanged(ctx, cfg.operatorApiUrl),
-    });
-    if (onChainTeamName === null) {
-      log("organizer redeployed before registration completed — re-resolving the round:");
-      ctx = await waitForRoundContext(cfg.operatorApiUrl, log);
-      feedState = await fetchFeedState(cfg.operatorApiUrl);
-      printCtx();
-    }
-  }
+  // ── roster check ────────────────────────────────────────────────────────────────────────────
+  // Already registered above (before the round) — re-verify against the ROUND's registry in case
+  // the organizer redeployed infra in between (a fresh registry starts with an empty roster).
+  banner("Roster check");
+  const onChainTeamName = await ensureRegistered(ctx.registry);
   // The venue's baked-in label mirrors your roster name; TEAM_NAME is only the fallback.
   const venueLabel = onChainTeamName || cfg.teamName;
 

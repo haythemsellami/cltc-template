@@ -45,20 +45,22 @@ cp ../.env.example ../.env          # then fill in the values the organizer gave
 npm start
 ```
 
-That, in order: **listens until the organizer has an active round** (start it any time — even days
-early; it prints the round's details the moment it goes live: CASH/ASSET token addresses, the
-recommended initial capital, and the feed's market/symbol/streams) → **waits for your manual team
-registration** — open the maker dashboard's Register tab, connect THIS bot's wallet (the printed
-address), and sign "Register team"; the bot polls the on-chain roster until you appear → waits for
-the round funding (the organizer mints CASH/ASSET — and MON — against that roster) → deploys your
-venue → max-approves it for CASH+ASSET (your inventory stays in your wallet) → registers the venue
-→ seeds the first quote → then loops, re-quoting from your strategy. `Ctrl+C` prints a summary
-(quotes pushed, swaps served, balances).
+That, in order: prints your address → **waits for MON gas** (any amount — send the address to the
+organizer, or fund it yourself) → **self-registers your team** (`registerMarketMaker(TEAM_NAME)` is
+the bot's first transaction — no dashboard needed; the manual dashboard flow remains as fallback)
+→ **listens until the organizer has an active round** (start it any time — even days early; it
+prints the round's details the moment it goes live) → waits for the round funding (the organizer
+mints CASH/ASSET against the roster) → deploys your venue → max-approves it for CASH+ASSET (your
+inventory stays in your wallet) → registers the venue → seeds the first quote → then loops,
+re-quoting from your strategy. `Ctrl+C` prints a summary (quotes pushed, swaps served, balances).
+
+So the only things `.env` must carry are **`PRIVATE_KEY`** (or let the bot generate one) and
+**`TEAM_NAME`**; once gassed, everything up to quoting is automatic.
 
 > **Why the bot's wallet?** The registry enrolls whoever signs `registerMarketMaker`, and your
-> venue's owner must be that same enrolled address. So register with the SAME key the bot runs on:
-> either set `PRIVATE_KEY` to a key your browser wallet holds, or import the generated `.venue-key`
-> into your wallet before registering.
+> venue's owner must be that same enrolled address — which is why the bot signs the registration
+> itself with its own key. Only the manual fallback (dashboard Register tab) requires importing
+> the key into a browser wallet.
 
 The feed subscription follows the round automatically — the bot subscribes by stream *kind*
 (`?kinds=aggTrade`), so it receives whatever market symbol the live round emits and keeps tracking
@@ -98,12 +100,14 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 | `--venue` | `VENUE` | – | reuse a venue you already own (skip deploy + fund) |
 | `--assume-funded` | – | off | skip the interactive funding gate |
 | `--generate-key` | `GENERATE_KEY` | off | mint a FRESH identity into `KEY_FILE` (ignores `PRIVATE_KEY`; refuses to overwrite an existing keyfile) |
-| `--auto-register` | `AUTO_REGISTER` | off | self-register `TEAM_NAME` on-chain once MON arrives — no dashboard signature needed |
 
 ### Spin up a maker in one command (no dashboard)
 
+Self-registration is the default — every start registers `TEAM_NAME` as soon as MON arrives. For a
+fresh throwaway identity (internal testing, fleets):
+
 ```sh
-TEAM_NAME=my-team npm start -- --generate-key --auto-register
+TEAM_NAME=my-team npm start -- --generate-key
 ```
 
 Prints a fresh address → send it to the organizer for funding → the moment MON lands, the bot
@@ -112,8 +116,8 @@ registers the team itself and continues to funding → deploy → quote. Keys co
 on one machine, give each its own keyfile (and team name):
 
 ```sh
-TEAM_NAME=mm-a npm start -- --generate-key --auto-register --key-file .venue-key-a
-TEAM_NAME=mm-b npm start -- --generate-key --auto-register --key-file .venue-key-b
+TEAM_NAME=mm-a npm start -- --generate-key --key-file .venue-key-a
+TEAM_NAME=mm-b npm start -- --generate-key --key-file .venue-key-b
 ```
 
 `--generate-key` never overwrites an existing keyfile (it may hold a funded identity) — re-runs of

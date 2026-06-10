@@ -53,12 +53,9 @@ export interface BotConfig {
   /** Mint a FRESH identity into KEY_FILE (ignores PRIVATE_KEY; refuses to overwrite an existing
    *  keyfile so a funded identity can't be clobbered). For spinning up many makers fast. */
   generateKey: boolean;
-  /** Self-register the team on-chain (registerMarketMaker(TEAM_NAME)) once the wallet is gassed,
-   *  instead of waiting for a manual dashboard registration. */
-  autoRegister: boolean;
 }
 
-const BOOLEAN_FLAGS = new Set(["--assume-funded", "--generate-key", "--auto-register"]);
+const BOOLEAN_FLAGS = new Set(["--assume-funded", "--generate-key"]);
 
 /** Minimal `--flag value` / `--bool-flag` parser. Unknown flags are ignored. */
 function parseArgs(argv: string[]): { flags: Map<string, string>; bools: Set<string> } {
@@ -135,6 +132,5 @@ export function loadConfig(argv: string[] = []): BotConfig {
     venueOverride: venueRaw ? (venueRaw as Hex) : null,
     assumeFunded: bools.has("--assume-funded"),
     generateKey: bools.has("--generate-key") || /^(1|true)$/iu.test(process.env.GENERATE_KEY ?? ""),
-    autoRegister: bools.has("--auto-register") || /^(1|true)$/iu.test(process.env.AUTO_REGISTER ?? ""),
   };
 }

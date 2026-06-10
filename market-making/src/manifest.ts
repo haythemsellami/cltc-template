@@ -6,7 +6,7 @@
 //  redeploy). Your edge belongs in src/strategy.ts / src/quoter.ts / ../contracts, not here.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-import type { DeploymentManifest, RoundContext } from "./types.js";
+import type { DeploymentManifest, Hex, RoundContext } from "./types.js";
 
 /**
  * Resolve the active round's token pair + infra addresses from the organizer's manifest
@@ -56,6 +56,43 @@ export async function fetchRoundContext(operatorApiUrl: string): Promise<RoundCo
     initialCash: BigInt(round.initialCash),
     initialAsset: BigInt(round.initialAsset),
   };
+}
+
+/**
+ * Block until the competition INFRA exists (a manifest with a registry) — rounds come later. Team
+ * registration is registry-level and happens before any round, so the bot only needs this much to
+ * enroll itself.
+ */
+export async function waitForRegistry(operatorApiUrl: string, log: (m: string) => void): Promise<Hex> {
+  let lastReason = "";
+  let polls = 0;
+  for (;;) {
+    try {
+      const res = await fetch(`${operatorApiUrl}/api/manifest`);
+      if (res.ok) {
+        const manifest = (await res.json()) as DeploymentManifest | null;
+        if (manifest?.registry) {
+          return manifest.registry;
+        }
+      }
+      const reason = "no deployment manifest yet — the organizer hasn't deployed infra";
+      if (reason !== lastReason) {
+        log(`waiting: ${reason}`);
+        lastReason = reason;
+      }
+    } catch (error) {
+      const reason = `operator API unreachable at ${operatorApiUrl} (${error instanceof Error ? error.message : String(error)})`;
+      if (reason !== lastReason) {
+        log(`waiting: ${reason}`);
+        lastReason = reason;
+      }
+    }
+    polls += 1;
+    if (polls % 12 === 0) {
+      log("  still waiting for the competition infra…");
+    }
+    await new Promise((r) => setTimeout(r, 5_000));
+  }
 }
 
 /**
