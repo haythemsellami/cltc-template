@@ -19,7 +19,10 @@ import type { Balances, FundingRequirement, Hex, RoundContext } from "./types.js
  */
 export function computeFundingRequirement(ctx: RoundContext, monForGasWei: bigint): FundingRequirement {
   return {
-    monWei: monForGasWei,
+    // 5% tolerance under the configured floor: the bot SPENDS gas before this gate (team
+    // self-registration is its first transaction), so an organizer who funds exactly MON_FOR_GAS
+    // must not strand the bot a few millimon short of a floor it can never reach again.
+    monWei: (monForGasWei * 95n) / 100n,
     needsCash: ctx.initialCash > 0n,
     needsAsset: ctx.initialAsset > 0n,
   };
