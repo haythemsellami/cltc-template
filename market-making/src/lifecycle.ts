@@ -11,12 +11,12 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-import { formatEther, formatUnits, parseEther, type Account, type PublicClient, type WalletClient } from "viem";
+import { formatEther, formatUnits, type Account, type PublicClient, type WalletClient } from "viem";
 
 import { accountFromKey, createReadClient, createWalletClientFor, generatePrivateKey } from "./chain.js";
 import type { BotConfig } from "./config.js";
 import { FeedClient } from "./feed-client.js";
-import { computeFundingRequirement, readBalances, waitForFunding, waitForGas } from "./funding.js";
+import { computeFundingRequirement, readBalances, waitForFunding } from "./funding.js";
 import { fetchFeedState, fetchRoundContext, manifestChanged, sameRoundContext, waitForRegistry, waitForRoundContext } from "./manifest.js";
 import { shouldRequote } from "./quoter.js";
 import { decideFairPrice, type MarketTick } from "./strategy.js";
@@ -38,9 +38,6 @@ import {
 } from "./venue.js";
 
 const RECENT_PRICES_CAP = 128;
-// Enough MON for the venue-reuse path's approval/registration txs (the normal path's full funding
-// gate already includes the MON_FOR_GAS floor alongside CASH/ASSET).
-const REUSE_GAS_MON = parseEther("0.5");
 
 const log = (message = ""): void => console.log(message);
 const banner = (title: string): void => {
@@ -392,8 +389,6 @@ export async function run(cfg: BotConfig): Promise<void> {
   if (reuseVenue) {
     // ── reuse path ─────────────────────────────────────────────────────────────────────────
     banner("Reusing an existing venue");
-    const reuseGasWei = cfg.monForGasWei < REUSE_GAS_MON ? cfg.monForGasWei : REUSE_GAS_MON;
-    await waitForGas({ client, address, monWei: reuseGasWei, log, assumeFunded: cfg.assumeFunded });
     const owner = await readVenueOwner(client, reuseVenue);
     if (owner.toLowerCase() !== address.toLowerCase()) {
       throw new Error(`VENUE ${reuseVenue} is owned by ${owner}, not your address ${address}`);
@@ -423,7 +418,7 @@ export async function run(cfg: BotConfig): Promise<void> {
     // manifest after the wait and re-gate if the context changed under us, otherwise we would
     // deploy/fund/register against a registry that no longer exists in the manifest.
     for (;;) {
-      const req = computeFundingRequirement(ctx, cfg.monForGasWei);
+      const req = computeFundingRequirement(ctx);
       await waitForFunding({
         client,
         address,

@@ -42,8 +42,6 @@ export interface BotConfig {
   requoteSecs: number;
   /** Re-quote immediately when the price moves at least this many bps since the last quote. */
   requoteBps: number;
-  /** MON to require on your address before proceeding (gas), in wei. */
-  monForGasWei: bigint;
   /** Fair price (WAD) used to seed the first quote if the feed hasn't ticked yet. */
   fallbackPriceWad: bigint;
   /** Reuse an already-deployed venue you own instead of deploying a fresh one. */
@@ -127,7 +125,6 @@ export function loadConfig(argv: string[] = []): BotConfig {
     ttlSeconds,
     requoteSecs,
     requoteBps: num("--requote-bps", "REQUOTE_BPS", 15),
-    monForGasWei: parseEther(pick("--mon-gas", "MON_FOR_GAS", "0.5")),
     fallbackPriceWad,
     venueOverride: venueRaw ? (venueRaw as Hex) : null,
     assumeFunded: bools.has("--assume-funded"),

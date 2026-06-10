@@ -45,8 +45,9 @@ cp ../.env.example ../.env          # then fill in the values the organizer gave
 npm start
 ```
 
-That, in order: prints your address → **waits for MON gas** (any amount — send the address to the
-organizer, or fund it yourself) → **self-registers your team** (`registerMarketMaker(TEAM_NAME)` is
+That, in order: prints your address → **waits for MON > 0** (the bot's ONLY gas gate — send the
+address to the organizer, or fund it yourself; if a later transaction runs out of gas it simply
+fails with the on-chain error) → **self-registers your team** (`registerMarketMaker(TEAM_NAME)` is
 the bot's first transaction — no dashboard needed; the manual dashboard flow remains as fallback)
 → **listens until the organizer has an active round** (start it any time — even days early; it
 prints the round's details the moment it goes live) → waits for the round funding (the organizer
@@ -95,7 +96,6 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
-| `--mon-gas` | `MON_FOR_GAS` | `0.5` | MON to require before proceeding (gas) |
 | `--fallback-price` | `FALLBACK_PRICE` | `65000` | seed price if the feed hasn't ticked yet |
 | `--venue` | `VENUE` | – | reuse a venue you already own (skip deploy + fund) |
 | `--assume-funded` | – | off | skip the interactive funding gate |

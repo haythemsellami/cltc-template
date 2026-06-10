@@ -20,12 +20,11 @@ export interface RoundContext {
 }
 
 /**
- * The funding gate's pass condition: MON at/above the gas floor, plus a positive balance of each
- * token the round actually uses (so the venue can quote both directions).
+ * The funding gate's pass condition: a positive balance of each token the round actually uses
+ * (so the venue can quote both directions). MON is not gated here — the startup gate (> 0) is
+ * the only gas check; out-of-gas transactions fail loudly instead.
  */
 export interface FundingRequirement {
-  /** Hard floor: native MON for gas (wei). */
-  monWei: bigint;
   needsCash: boolean;
   needsAsset: boolean;
 }
