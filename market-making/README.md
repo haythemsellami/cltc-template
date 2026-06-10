@@ -67,12 +67,12 @@ The feed subscription follows the round automatically — the bot subscribes by 
 across round changes. Set `FEED_PRICE_STREAM=<symbol>@<kind>` only to pin one exact stream (or
 against an older feed server without `?kinds=` support).
 
-Re-running deploys a **fresh** venue. To keep market-making the **same** venue across restarts, pass
-its address:
-
-```sh
-VENUE=0xYourVenue npm start     # skip deploy/fund; just re-link the venue + quote
-```
+Restarts are cheap: **Ctrl+C → edit `src/strategy.ts` → `npm start` reuses your deployed venue**
+automatically — the bot compares the on-chain venue's runtime bytecode against your current
+`forge build` (immutables masked) and only redeploys when the CONTRACT actually changed (or a new
+round/registry started). Editing the venue contract + `forge build` therefore deploys fresh on the
+next start, exactly as you'd want. To pin a specific venue manually, `VENUE=0xYourVenue npm start`
+still wins over the saved state.
 
 ## Configuration
 

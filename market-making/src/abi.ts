@@ -20,7 +20,12 @@ import type { Hex } from "./types.js";
  * deploys exactly the contract in ../contracts (one source of truth — no copied/stale ABI). Run
  * `forge build` in ../contracts first; override the path with VENUE_ARTIFACT if your layout differs.
  */
-function loadVenueArtifact(): { abi: Abi; bytecode: Hex } {
+function loadVenueArtifact(): {
+  abi: Abi;
+  bytecode: Hex;
+  deployedBytecode: Hex | null;
+  immutableRefs: { start: number; length: number }[];
+} {
   const path = process.env.VENUE_ARTIFACT
     ? resolve(process.env.VENUE_ARTIFACT)
     : fileURLToPath(new URL("../../contracts/out/CompetitionPropAMM.sol/CompetitionPropAMM.json", import.meta.url));
@@ -36,23 +41,36 @@ function loadVenueArtifact(): { abi: Abi; bytecode: Hex } {
     );
   }
 
-  const json = JSON.parse(raw) as { abi?: Abi; bytecode?: { object?: string } };
+  const json = JSON.parse(raw) as {
+    abi?: Abi;
+    bytecode?: { object?: string };
+    deployedBytecode?: { object?: string; immutableReferences?: Record<string, { start: number; length: number }[]> };
+  };
   const object = json.bytecode?.object;
   if (!json.abi || !object) {
     throw new Error(`venue artifact at ${path} has no abi/bytecode — re-run \`forge build\` in ../contracts`);
   }
-  return { abi: json.abi, bytecode: (object.startsWith("0x") ? object : `0x${object}`) as Hex };
+  const deployedRaw = json.deployedBytecode?.object;
+  // Byte ranges of immutable values (e.g. CASH/ASSET) inside the RUNTIME code — the artifact holds
+  // zeros there while a deployed instance holds real addresses, so an is-this-the-same-build
+  // comparison must mask these ranges on both sides.
+  const immutableRefs = Object.values(json.deployedBytecode?.immutableReferences ?? {}).flat();
+  return {
+    abi: json.abi,
+    bytecode: (object.startsWith("0x") ? object : `0x${object}`) as Hex,
+    deployedBytecode: deployedRaw ? ((deployedRaw.startsWith("0x") ? deployedRaw : `0x${deployedRaw}`) as Hex) : null,
+    immutableRefs,
+  };
 }
 
 const artifact = loadVenueArtifact();
 export const venueAbi: Abi = artifact.abi;
+/** The artifact's RUNTIME bytecode (immutable slots zeroed) + where those slots are. */
+export const venueDeployedBytecode: Hex | null = artifact.deployedBytecode;
+export const venueImmutableRefs: { start: number; length: number }[] = artifact.immutableRefs;
 export const venueBytecode: Hex = artifact.bytecode;
 
-/**
- * The registry methods the bot calls — the registry itself is the organizer's deployment.
- * Note: team enrollment (`registerMarketMaker`) is deliberately NOT here — you register your team
- * manually on the maker dashboard with this bot's wallet; the bot only reads the roster.
- */
+/** The registry methods the bot calls — the registry itself is the organizer's deployment. */
 export const registryAbi = [
   {
     type: "function",
@@ -81,6 +99,13 @@ export const registryAbi = [
     stateMutability: "nonpayable",
     inputs: [{ name: "teamName", type: "string" }],
     outputs: [],
+  },
+  {
+    type: "function",
+    name: "venueOf",
+    stateMutability: "view",
+    inputs: [{ name: "marketMaker", type: "address" }],
+    outputs: [{ name: "venue", type: "address" }],
   },
 ] as const;
 

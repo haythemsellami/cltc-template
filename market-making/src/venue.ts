@@ -10,7 +10,7 @@
 
 import type { PublicClient, WalletClient } from "viem";
 
-import { registryAbi, tokenAbi, venueAbi, venueBytecode } from "./abi.js";
+import { registryAbi, tokenAbi, venueAbi, venueBytecode, venueDeployedBytecode, venueImmutableRefs } from "./abi.js";
 import type { Hex, RoundContext } from "./types.js";
 
 /** Constructor args for `CompetitionPropAMM`, in the order the Solidity constructor expects. */
@@ -137,7 +137,37 @@ export async function readTeamName(client: PublicClient, registry: Hex, address:
   }
 }
 
-/** Register the venue under your EOA in the organizer's CompetitionRegistry (owner check passes). */
+/** The maker's currently-registered venue on the registry (zero address when none). This is THE
+ *  pointer the leaderboard + aggregator route by, so "still registered" means exactly this. */
+export async function readVenueOf(client: PublicClient, registry: Hex, marketMaker: Hex): Promise<Hex> {
+  return (await client.readContract({
+    address: registry,
+    abi: registryAbi,
+    functionName: "venueOf",
+    args: [marketMaker],
+  })) as Hex;
+}
+
+/**
+ * Is the deployed venue at `venue` byte-for-byte the contract currently in ../contracts/out?
+ * Compares RUNTIME bytecode with the immutable value ranges (CASH/ASSET, etc.) masked on both
+ * sides — immutables are per-deployment values, not code. True = the on-chain venue was built
+ * from exactly this source/compiler config, so a restart can reuse it instead of redeploying.
+ */
+export async function matchesBuiltVenue(client: PublicClient, venue: Hex): Promise<boolean> {
+  if (!venueDeployedBytecode) return false;
+  const onchain = await client.getCode({ address: venue }).catch(() => null);
+  if (!onchain || onchain === "0x") return false;
+  const a = Buffer.from(venueDeployedBytecode.slice(2), "hex");
+  const b = Buffer.from(onchain.slice(2), "hex");
+  if (a.length !== b.length) return false;
+  for (const ref of venueImmutableRefs) {
+    a.fill(0, ref.start, ref.start + ref.length);
+    b.fill(0, ref.start, ref.start + ref.length);
+  }
+  return a.equals(b);
+}
+
 /** Self-register the team on the roster (registerMarketMaker) — the --auto-register path. The
  *  registry enrolls msg.sender, so this wallet becomes the funded/scored maker identity. */
 export async function registerTeam(
@@ -158,6 +188,7 @@ export async function registerTeam(
   return hash;
 }
 
+/** Register the venue under your EOA in the organizer's CompetitionRegistry (owner check passes). */
 export async function registerVenue(
   wallet: WalletClient,
   client: PublicClient,

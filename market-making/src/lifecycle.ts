@@ -27,8 +27,10 @@ import {
   countSwaps,
   deployVenue,
   isMarketMakerRegistered,
+  matchesBuiltVenue,
   pushQuote,
   readTeamName,
+  readVenueOf,
   readVenueOwner,
   registerTeam,
   registerVenue,
@@ -77,6 +79,31 @@ function resolveIdentity(cfg: BotConfig): Hex {
   writeFileSync(cfg.keyFile, `${key}\n`, { mode: 0o600 });
   log(`identity: generated a fresh key -> ${cfg.keyFile} (reused next run; gitignored). Fund this address.`);
   return key;
+}
+
+/** Per-identity record of the last deployed venue, so a restart can REUSE it when nothing
+ *  changed (same round, same registry, and the on-chain bytecode still matches the local build —
+ *  i.e. you only edited strategy.ts, not the contract). Lives next to the keyfile, gitignored. */
+interface VenueState {
+  venue: Hex;
+  round: number;
+  registry: Hex;
+}
+const venueStatePath = (cfg: BotConfig): string => `${cfg.keyFile}.venue.json`;
+function loadVenueState(cfg: BotConfig): VenueState | null {
+  try {
+    const raw = JSON.parse(readFileSync(venueStatePath(cfg), "utf8")) as VenueState;
+    return raw && typeof raw.venue === "string" && typeof raw.round === "number" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+function saveVenueState(cfg: BotConfig, state: VenueState): void {
+  try {
+    writeFileSync(venueStatePath(cfg), `${JSON.stringify(state, null, 2)}\n`);
+  } catch {
+    /* best-effort — worst case the next run redeploys */
+  }
 }
 
 /** Best-effort wait for the first feed tick so we can seed a quote at a real price. */
@@ -330,24 +357,58 @@ export async function run(cfg: BotConfig): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-  if (cfg.venueOverride) {
+  // ── automatic venue reuse ─────────────────────────────────────────────────────────────────
+  // Ctrl+C → edit strategy.ts → npm start should NOT redeploy when the CONTRACT didn't change:
+  // if the venue from the last run still belongs to this round + registry, is ours, and its
+  // on-chain runtime bytecode matches the current forge build (immutables masked), reuse it.
+  // Any mismatch (you rebuilt the contract, a new round, a redeployed registry) falls through to
+  // a fresh deploy. An explicit VENUE= override always wins over the saved state.
+  let autoReuse: Hex | null = null;
+  if (!cfg.venueOverride) {
+    const saved = loadVenueState(cfg);
+    if (saved && saved.round === ctx.round && saved.registry.toLowerCase() === ctx.registry.toLowerCase()) {
+      const [owner, sameBuild] = await Promise.all([
+        readVenueOwner(client, saved.venue).catch(() => null),
+        matchesBuiltVenue(client, saved.venue),
+      ]);
+      if (owner?.toLowerCase() !== address.toLowerCase()) {
+        log(`saved venue ${saved.venue} isn't owned by this wallet — deploying fresh`);
+      } else if (!sameBuild) {
+        log(`saved venue ${saved.venue} was built from a DIFFERENT contract than ../contracts/out — deploying the new build`);
+      } else {
+        autoReuse = saved.venue;
+        log(`venue contract unchanged since last run — reusing ${saved.venue} (no redeploy)`);
+      }
+    }
+  }
+
+  const reuseVenue = cfg.venueOverride ?? autoReuse;
+  if (reuseVenue) {
     // ── reuse path ─────────────────────────────────────────────────────────────────────────
     banner("Reusing an existing venue");
     const reuseGasWei = cfg.monForGasWei < REUSE_GAS_MON ? cfg.monForGasWei : REUSE_GAS_MON;
     await waitForGas({ client, address, monWei: reuseGasWei, log, assumeFunded: cfg.assumeFunded });
-    const owner = await readVenueOwner(client, cfg.venueOverride);
+    const owner = await readVenueOwner(client, reuseVenue);
     if (owner.toLowerCase() !== address.toLowerCase()) {
-      throw new Error(`VENUE ${cfg.venueOverride} is owned by ${owner}, not your address ${address}`);
+      throw new Error(`VENUE ${reuseVenue} is owned by ${owner}, not your address ${address}`);
     }
-    venue = cfg.venueOverride;
+    venue = reuseVenue;
     // Bound the shutdown Swap-log scan to this session (the venue's creation block is unknown here).
     deployBlock = await client.getBlockNumber();
     log(`venue ${venue} owned by you ✓`);
     if ((await approveVenueAllowances(wallet, client, venue, ctx)) > 0) {
       log("venue re-approved for CASH + ASSET ✓");
     }
-    await registerVenue(wallet, client, ctx.registry, venue);
-    log("registered ✓");
+    // Re-link only when the registry points elsewhere — the registration tx is skipped when the
+    // backend is already routing to this venue.
+    const registered = await readVenueOf(client, ctx.registry, address).catch(() => null);
+    if (registered?.toLowerCase() === venue.toLowerCase()) {
+      log("already registered — the backend keeps routing to this venue ✓");
+    } else {
+      await registerVenue(wallet, client, ctx.registry, venue);
+      log("registered ✓");
+    }
+    saveVenueState(cfg, { venue, round: ctx.round, registry: ctx.registry });
   } else {
     // ── funding gate ───────────────────────────────────────────────────────────────────────
     banner("Funding gate");
@@ -403,6 +464,7 @@ export async function run(cfg: BotConfig): Promise<void> {
     banner("Registering the venue");
     await registerVenue(wallet, client, ctx.registry, venue);
     log("registered with the CompetitionRegistry ✓");
+    saveVenueState(cfg, { venue, round: ctx.round, registry: ctx.registry });
   }
 
   // ── seed the first quote ────────────────────────────────────────────────────────────────────
