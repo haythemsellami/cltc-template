@@ -97,6 +97,27 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 | `--fallback-price` | `FALLBACK_PRICE` | `65000` | seed price if the feed hasn't ticked yet |
 | `--venue` | `VENUE` | – | reuse a venue you already own (skip deploy + fund) |
 | `--assume-funded` | – | off | skip the interactive funding gate |
+| `--generate-key` | `GENERATE_KEY` | off | mint a FRESH identity into `KEY_FILE` (ignores `PRIVATE_KEY`; refuses to overwrite an existing keyfile) |
+| `--auto-register` | `AUTO_REGISTER` | off | self-register `TEAM_NAME` on-chain once MON arrives — no dashboard signature needed |
+
+### Spin up a maker in one command (no dashboard)
+
+```sh
+TEAM_NAME=my-team npm start -- --generate-key --auto-register
+```
+
+Prints a fresh address → send it to the organizer for funding → the moment MON lands, the bot
+registers the team itself and continues to funding → deploy → quote. Keys come from the OS CSPRNG
+(256 bits), so identities generated on different machines can never collide. To run several makers
+on one machine, give each its own keyfile (and team name):
+
+```sh
+TEAM_NAME=mm-a npm start -- --generate-key --auto-register --key-file .venue-key-a
+TEAM_NAME=mm-b npm start -- --generate-key --auto-register --key-file .venue-key-b
+```
+
+`--generate-key` never overwrites an existing keyfile (it may hold a funded identity) — re-runs of
+the same maker just drop the flag and the bot reuses the persisted key.
 
 ## Writing a strategy
 

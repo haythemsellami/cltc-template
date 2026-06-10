@@ -29,6 +29,7 @@ import {
   pushQuote,
   readTeamName,
   readVenueOwner,
+  registerTeam,
   registerVenue,
 } from "./venue.js";
 
@@ -48,6 +49,21 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /** Load the key from --key/env, else from the keyfile, else generate one and persist it (gitignored). */
 function resolveIdentity(cfg: BotConfig): Hex {
   const normalize = (k: string): Hex => (k.startsWith("0x") ? k : `0x${k}`) as Hex;
+  if (cfg.generateKey) {
+    // Explicit fresh identity (--generate-key): PRIVATE_KEY is deliberately ignored, and an
+    // existing keyfile is NEVER overwritten — it may hold a funded identity. Keys come from the
+    // OS CSPRNG (256 bits), so two machines can't mint the same key — no coordination needed.
+    if (existsSync(cfg.keyFile)) {
+      throw new Error(
+        `--generate-key: ${cfg.keyFile} already exists — refusing to overwrite a possibly-funded identity. ` +
+          `Pass a fresh path (--key-file .venue-key-2) or delete the file if you're sure.`,
+      );
+    }
+    const fresh = generatePrivateKey();
+    writeFileSync(cfg.keyFile, `${fresh}\n`, { mode: 0o600 });
+    log(`identity: FRESH key generated -> ${cfg.keyFile} (PRIVATE_KEY ignored)`);
+    return fresh;
+  }
   if (cfg.privateKey) {
     log("identity: using key from PRIVATE_KEY / --key");
     return normalize(cfg.privateKey);
@@ -140,6 +156,15 @@ export async function run(cfg: BotConfig): Promise<void> {
   log(`address     : ${address}`);
   log(`operator API: ${cfg.operatorApiUrl}`);
   log(`dashboard   : ${cfg.dashboardUrl}`);
+  if (cfg.generateKey) {
+    log("");
+    log("━━ Share this address with the organizer (internal channel) so they can fund it ━━");
+    log(`    ${address}`);
+    if (cfg.autoRegister) {
+      log(`    The bot self-registers as "${cfg.teamName}" the moment MON gas arrives.`);
+    }
+    log("");
+  }
 
   // ── round gate ─────────────────────────────────────────────────────────────────────────────
   // The bot idles here until the organizer has an active round — `npm start` any time, even days
@@ -187,6 +212,23 @@ export async function run(cfg: BotConfig): Promise<void> {
   banner("Team registration");
   let onChainTeamName: string | null = null;
   while (onChainTeamName === null) {
+    // --auto-register: instead of waiting for a manual dashboard signature, the bot enrolls
+    // itself with TEAM_NAME once it has gas (registration is its first on-chain transaction, so
+    // the organizer only needs to send MON to the printed address). Runs inside the redeploy
+    // loop, so a fresh registry gets re-registered too.
+    if (cfg.autoRegister && !(await isMarketMakerRegistered(client, ctx.registry, address).catch(() => false))) {
+      log(`auto-register: enrolling as "${cfg.teamName}" — waiting for MON gas first`);
+      if (cfg.teamName === "my-team") {
+        log("  (TEAM_NAME is still the default \"my-team\" — set it in .env for a real name)");
+      }
+      await waitForGas({ client, address, monWei: cfg.monForGasWei, log, assumeFunded: cfg.assumeFunded });
+      try {
+        await registerTeam(wallet, client, ctx.registry, cfg.teamName);
+        log(`auto-register: enrolled as "${cfg.teamName}" ✓`);
+      } catch (e) {
+        log(`auto-register failed (${e instanceof Error ? e.message : String(e)}) — falling back to the dashboard flow`);
+      }
+    }
     onChainTeamName = await waitForTeamRegistration({
       client,
       registry: ctx.registry,

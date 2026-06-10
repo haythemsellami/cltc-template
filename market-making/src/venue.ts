@@ -138,6 +138,26 @@ export async function readTeamName(client: PublicClient, registry: Hex, address:
 }
 
 /** Register the venue under your EOA in the organizer's CompetitionRegistry (owner check passes). */
+/** Self-register the team on the roster (registerMarketMaker) — the --auto-register path. The
+ *  registry enrolls msg.sender, so this wallet becomes the funded/scored maker identity. */
+export async function registerTeam(
+  wallet: WalletClient,
+  client: PublicClient,
+  registry: Hex,
+  teamName: string,
+): Promise<Hex> {
+  const hash = await wallet.writeContract({
+    address: registry,
+    abi: registryAbi,
+    functionName: "registerMarketMaker",
+    args: [teamName],
+    account: wallet.account!,
+    chain: wallet.chain,
+  });
+  assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerMarketMaker");
+  return hash;
+}
+
 export async function registerVenue(
   wallet: WalletClient,
   client: PublicClient,

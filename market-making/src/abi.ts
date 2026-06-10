@@ -75,6 +75,13 @@ export const registryAbi = [
     inputs: [{ name: "venue", type: "address" }],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "registerMarketMaker",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "teamName", type: "string" }],
+    outputs: [],
+  },
 ] as const;
 
 /** Minimal ERC20 surface the bot touches on the round's CASH / ASSET tokens. */
