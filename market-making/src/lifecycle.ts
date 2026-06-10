@@ -28,6 +28,7 @@ import {
   deployVenue,
   isMarketMakerRegistered,
   matchesBuiltVenue,
+  matchesRoundPair,
   pushQuote,
   readTeamName,
   readVenueOf,
@@ -367,14 +368,19 @@ export async function run(cfg: BotConfig): Promise<void> {
   if (!cfg.venueOverride) {
     const saved = loadVenueState(cfg);
     if (saved && saved.round === ctx.round && saved.registry.toLowerCase() === ctx.registry.toLowerCase()) {
-      const [owner, sameBuild] = await Promise.all([
+      const [owner, sameBuild, samePair] = await Promise.all([
         readVenueOwner(client, saved.venue).catch(() => null),
         matchesBuiltVenue(client, saved.venue),
+        // The bytecode check masks immutables (same code, ANY pair) — this pins the venue to the
+        // round's actual CASH/ASSET, independent of what the state file claims.
+        matchesRoundPair(client, saved.venue, ctx),
       ]);
       if (owner?.toLowerCase() !== address.toLowerCase()) {
         log(`saved venue ${saved.venue} isn't owned by this wallet — deploying fresh`);
       } else if (!sameBuild) {
         log(`saved venue ${saved.venue} was built from a DIFFERENT contract than ../contracts/out — deploying the new build`);
+      } else if (!samePair) {
+        log(`saved venue ${saved.venue} trades a different token pair than round ${ctx.round} — deploying fresh`);
       } else {
         autoReuse = saved.venue;
         log(`venue contract unchanged since last run — reusing ${saved.venue} (no redeploy)`);

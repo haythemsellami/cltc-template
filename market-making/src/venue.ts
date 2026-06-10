@@ -149,6 +149,24 @@ export async function readVenueOf(client: PublicClient, registry: Hex, marketMak
 }
 
 /**
+ * Does the venue trade exactly the round's token pair? Reads the venue's own CASH()/ASSET()
+ * immutables — the bytecode comparison deliberately MASKS immutables (same code, any pair), so
+ * this is the companion check that pins the configuration. Returns false when the getters are
+ * missing (a custom venue without them can't be verified — deploy fresh instead of guessing).
+ */
+export async function matchesRoundPair(client: PublicClient, venue: Hex, ctx: RoundContext): Promise<boolean> {
+  try {
+    const [cash, asset] = await Promise.all([
+      client.readContract({ address: venue, abi: venueAbi, functionName: "CASH" }) as Promise<string>,
+      client.readContract({ address: venue, abi: venueAbi, functionName: "ASSET" }) as Promise<string>,
+    ]);
+    return cash.toLowerCase() === ctx.cashToken.toLowerCase() && asset.toLowerCase() === ctx.assetToken.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Is the deployed venue at `venue` byte-for-byte the contract currently in ../contracts/out?
  * Compares RUNTIME bytecode with the immutable value ranges (CASH/ASSET, etc.) masked on both
  * sides — immutables are per-deployment values, not code. True = the on-chain venue was built
