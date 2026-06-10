@@ -107,6 +107,12 @@ export const registryAbi = [
     inputs: [{ name: "marketMaker", type: "address" }],
     outputs: [{ name: "venue", type: "address" }],
   },
+  // Registry custom errors — listed so a revert decodes to its NAME instead of a raw selector.
+  { type: "error", name: "AlreadyRegisteredToAnother", inputs: [{ name: "venue", type: "address" }, { name: "marketMaker", type: "address" }] },
+  { type: "error", name: "EmptyTeamName", inputs: [] },
+  { type: "error", name: "NotRegistered", inputs: [{ name: "marketMaker", type: "address" }] },
+  { type: "error", name: "NotVenueOwner", inputs: [{ name: "venue", type: "address" }, { name: "caller", type: "address" }] },
+  { type: "error", name: "ZeroAddress", inputs: [] },
 ] as const;
 
 /** Minimal ERC20 surface the bot touches on the round's CASH / ASSET tokens. */

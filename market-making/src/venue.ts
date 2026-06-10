@@ -12,6 +12,7 @@ import type { PublicClient, WalletClient } from "viem";
 
 import { registryAbi, tokenAbi, venueAbi, venueBytecode, venueDeployedBytecode, venueImmutableRefs } from "./abi.js";
 import type { Hex, RoundContext } from "./types.js";
+import { withTxError } from "./tx-errors.js";
 
 /** Constructor args for `CompetitionPropAMM`, in the order the Solidity constructor expects. */
 export type VenueConstructorArgs = readonly [
@@ -50,13 +51,15 @@ export async function deployVenue(
   client: PublicClient,
   args: VenueConstructorArgs,
 ): Promise<DeployedVenue> {
-  const hash = await wallet.deployContract({
-    abi: venueAbi,
-    bytecode: venueBytecode,
-    args,
-    account: wallet.account!,
-    chain: wallet.chain,
-  });
+  const hash = await withTxError("venue deploy", wallet.account?.address, () =>
+    wallet.deployContract({
+      abi: venueAbi,
+      bytecode: venueBytecode,
+      args,
+      account: wallet.account!,
+      chain: wallet.chain,
+    }),
+  );
   const receipt = await client.waitForTransactionReceipt({ hash });
   assertSuccess(receipt, "venue deploy");
   if (!receipt.contractAddress) {
@@ -95,14 +98,16 @@ export async function approveVenueAllowances(
     if (current >= MAX_UINT256 / 2n) {
       continue; // already effectively unlimited
     }
-    const hash = await wallet.writeContract({
-      address: token,
-      abi: tokenAbi,
-      functionName: "approve",
-      args: [venue, MAX_UINT256],
-      account: wallet.account!,
-      chain: wallet.chain,
-    });
+    const hash = await withTxError("venue approval", wallet.account?.address, () =>
+      wallet.writeContract({
+        address: token,
+        abi: tokenAbi,
+        functionName: "approve",
+        args: [venue, MAX_UINT256],
+        account: wallet.account!,
+        chain: wallet.chain,
+      }),
+    );
     assertSuccess(await client.waitForTransactionReceipt({ hash }), "venue approval");
     sent += 1;
   }
@@ -194,14 +199,16 @@ export async function registerTeam(
   registry: Hex,
   teamName: string,
 ): Promise<Hex> {
-  const hash = await wallet.writeContract({
-    address: registry,
-    abi: registryAbi,
-    functionName: "registerMarketMaker",
-    args: [teamName],
-    account: wallet.account!,
-    chain: wallet.chain,
-  });
+  const hash = await withTxError("registerMarketMaker", wallet.account?.address, () =>
+    wallet.writeContract({
+      address: registry,
+      abi: registryAbi,
+      functionName: "registerMarketMaker",
+      args: [teamName],
+      account: wallet.account!,
+      chain: wallet.chain,
+    }),
+  );
   assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerMarketMaker");
   return hash;
 }
@@ -213,14 +220,16 @@ export async function registerVenue(
   registry: Hex,
   venue: Hex,
 ): Promise<Hex> {
-  const hash = await wallet.writeContract({
-    address: registry,
-    abi: registryAbi,
-    functionName: "registerVenue",
-    args: [venue],
-    account: wallet.account!,
-    chain: wallet.chain,
-  });
+  const hash = await withTxError("registerVenue", wallet.account?.address, () =>
+    wallet.writeContract({
+      address: registry,
+      abi: registryAbi,
+      functionName: "registerVenue",
+      args: [venue],
+      account: wallet.account!,
+      chain: wallet.chain,
+    }),
+  );
   assertSuccess(await client.waitForTransactionReceipt({ hash }), "registerVenue");
   return hash;
 }
@@ -233,14 +242,16 @@ export async function pushQuote(
   fairPriceWad: bigint,
   validUntilSec: bigint,
 ): Promise<Hex> {
-  const hash = await wallet.writeContract({
-    address: venue,
-    abi: venueAbi,
-    functionName: "updatePrice",
-    args: [fairPriceWad, validUntilSec],
-    account: wallet.account!,
-    chain: wallet.chain,
-  });
+  const hash = await withTxError("updatePrice", wallet.account?.address, () =>
+    wallet.writeContract({
+      address: venue,
+      abi: venueAbi,
+      functionName: "updatePrice",
+      args: [fairPriceWad, validUntilSec],
+      account: wallet.account!,
+      chain: wallet.chain,
+    }),
+  );
   assertSuccess(await client.waitForTransactionReceipt({ hash }), "updatePrice");
   return hash;
 }

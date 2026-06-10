@@ -528,6 +528,7 @@ export async function run(cfg: BotConfig): Promise<void> {
         );
       }
     } catch (error) {
+      // venue.ts already rethrows one-line readable errors (revert name / out-of-gas hint).
       log(`quote failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       inFlight = false;
