@@ -101,7 +101,9 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 ## Writing a strategy
 
 `decideFairPrice(tick)` returns a WAD-scaled CASH-per-ASSET mid price; the venue quotes a default
-20 bps spread around it (retune on-chain via `setSpreadBps`). Your PnL comes from *where* you quote
+20 bps spread around it. Retune the spread on-chain any time (it doesn't invalidate your current
+quote): `npm run set-spread -- --spread 50` (bps of round-trip cost, 0 = quote at mid, contract cap
+2000; uses your `.env` key and `VENUE`, or pass `--venue 0x...`). Your PnL comes from *where* you quote
 vs. the feed **and** how wide your spread is — you earn it on two-way flow and pay it to informed
 takers (the scorer marks your inventory at the feed price). The `tick` gives you the latest feed price, a rolling window of recent
 prices, your last fair price, and whether a round is live; `strategy.ts` ships `applyBps`,
