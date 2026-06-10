@@ -42,8 +42,9 @@ bot both count. Anything that scores higher within the rule above wins.
 ## Quickstart
 
 ```sh
-# 1. clone (with submodules — they're the contract's dependencies)
-git clone --recurse-submodules <your-fork-url> && cd <repo>
+# 1. clone (with submodules — they're the contract's dependencies). No fork needed —
+#    your strategy stays local (a public fork would publish it to the other teams).
+git clone --recurse-submodules https://github.com/haythemsellami/cltc-template.git && cd cltc-template
 #    (already cloned without --recurse-submodules? run:  git submodule update --init --recursive)
 
 # 2. build the contract  (if you skipped --recurse-submodules: forge install first)
