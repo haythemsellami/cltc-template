@@ -494,21 +494,17 @@ export async function run(cfg: BotConfig): Promise<void> {
   // strategy) from the feed — or a fallback if the feed hasn't ticked yet — before the loop runs.
   banner("Seeding the first quote");
   const seenPrice = await waitForFirstPrice(feed, 6_000);
-  if (seenPrice === null && feed.hasRoundSignal() && !feed.isRoundActive()) {
-    // Between rounds there is no tick to price off, and seeding the FALLBACK here is dangerous:
-    // a stale-configured fallback (e.g. the previous round's scale) is a live quote anyone could
-    // hit for the whole TTL. Skip — the loop quotes at the real price on the next round-start.
-    log("no round is live — skipping the seed quote (the loop quotes when the next round starts)");
+  if (seenPrice === null) {
+    // NEVER seed without a real tick. A live round ticks every second, so no tick within 6s means
+    // no round is broadcasting (between rounds, or the feed just connected) — and a made-up seed
+    // (FALLBACK_PRICE) is a live, hittable quote that can be wildly off the asset's scale for a
+    // whole TTL. An unquoted venue simply can't fill; the loop quotes on the first real tick.
+    log("no feed tick — skipping the seed quote (the loop quotes the moment the feed ticks; an unquoted venue can't fill)");
   } else {
-    const firstPrice = seenPrice ?? cfg.fallbackPriceWad;
-    log(
-      seenPrice
-        ? `feed price: ${fmt(firstPrice)}`
-        : `feed has no tick yet — seeding fallback ${fmt(firstPrice)} (the loop corrects it)`,
-    );
-    const seeded = await quoteNow(firstPrice, Date.now());
+    log(`feed price: ${fmt(seenPrice)}`);
+    const seeded = await quoteNow(seenPrice, Date.now());
     if (seeded) {
-      log(`quote #${state.quoteCount}  fairPrice=${fmt(lastFairWad!)}  (feed ${fmt(firstPrice)}, validUntil +${cfg.ttlSeconds}s)`);
+      log(`quote #${state.quoteCount}  fairPrice=${fmt(lastFairWad!)}  (feed ${fmt(seenPrice)}, validUntil +${cfg.ttlSeconds}s)`);
       log("");
       log("→ Venue is live. Ask the organizer to re-baseline your gas (so it's accounted for) before the round.");
     } else {
