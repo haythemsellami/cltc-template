@@ -273,10 +273,10 @@ export async function run(cfg: BotConfig): Promise<void> {
     log(`  ASSET    : ${ctx.assetToken}`);
     log(`  initial  : ${fmt(ctx.initialCash)} CASH + ${fmt(ctx.initialAsset)} ASSET per maker (recommended)`);
     if (feedState) {
-      log(
-        `  feed     : ${feedState.mode}${feedState.symbol ? ` ${feedState.symbol}` : ""} ×${feedState.speed}` +
-          `${feedState.paused ? " (paused)" : ""} — streams: ${feedState.streams.join(", ") || "(none yet)"}`,
-      );
+      // The public feed state is deliberately minimal — the organizer hides the feed's source
+      // and pacing (so a recorded round's market can't be looked up). Round + paused is all
+      // a bot needs; prices arrive by stream KIND regardless.
+      log(`  feed     : broadcasting round ${feedState.round}${feedState.paused ? " (paused)" : ""} — subscribe by kind (${cfg.feedPriceStream})`);
     } else {
       log("  feed     : not broadcasting yet — quoting starts on the first tick");
     }
