@@ -107,12 +107,12 @@ export function loadConfig(argv: string[] = []): BotConfig {
   return {
     rpcUrl: pick("--rpc-url", "RPC_URL", "https://testnet-rpc.monad.xyz"),
     chainId: num("--chain-id", "CHAIN_ID", 10143),
-    // Default to the live competition host (Tailscale tailnet). For a local dry-run, override these
+    // Default to the live competition host (public). For a local dry-run, override these
     // with the localhost URLs (see .env.example).
-    operatorApiUrl: pick("--operator-url", "OPERATOR_API_URL", "https://sgp-006.tail08a730.ts.net").replace(/\/$/, ""),
-    feedWsUrl: pick("--feed-ws", "FEED_WS_URL", "wss://sgp-006.tail08a730.ts.net/stream"),
+    operatorApiUrl: pick("--operator-url", "OPERATOR_API_URL", "https://sgp-006.devcore4.com").replace(/\/$/, ""),
+    feedWsUrl: pick("--feed-ws", "FEED_WS_URL", "wss://sgp-006.devcore4.com/stream"),
     feedPriceStream: pick("--feed-stream", "FEED_PRICE_STREAM", "aggTrade"),
-    dashboardUrl: pick("--dashboard-url", "DASHBOARD_URL", "https://sgp-006.tail08a730.ts.net").replace(/\/$/, ""),
+    dashboardUrl: pick("--dashboard-url", "DASHBOARD_URL", "https://sgp-006.devcore4.com").replace(/\/$/, ""),
     teamName: pick("--team", "TEAM_NAME", "my-team"),
     privateKey: keyRaw ? (keyRaw as Hex) : null,
     keyFile: pick("--key-file", "KEY_FILE", ".venue-key"),

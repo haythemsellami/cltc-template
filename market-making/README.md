@@ -86,13 +86,13 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 |---|---|---|---|
 | `--key` | `PRIVATE_KEY` | (generate) | your venue owner / deployer key |
 | `--key-file` | `KEY_FILE` | `.venue-key` | where a generated key is stored/reused (gitignored) |
-| `--operator-url` | `OPERATOR_API_URL` | `https://sgp-006.tail08a730.ts.net` | reads `GET /api/manifest` (BASE origin — no `/api`) |
-| `--feed-ws` | `FEED_WS_URL` | `wss://sgp-006.tail08a730.ts.net/stream` | market-data WebSocket |
+| `--operator-url` | `OPERATOR_API_URL` | `https://sgp-006.devcore4.com` | reads `GET /api/manifest` (BASE origin — no `/api`) |
+| `--feed-ws` | `FEED_WS_URL` | `wss://sgp-006.devcore4.com/stream` | market-data WebSocket |
 | `--feed-stream` | `FEED_PRICE_STREAM` | `aggTrade` | which stream KIND to price off (follows the live round) |
 | `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC (organizer may give you a faster endpoint) |
 | `--chain-id` | `CHAIN_ID` | `10143` | Monad testnet chain id |
 | `--team` | `TEAM_NAME` | `my-team` | fallback venue label — your ROSTER name is what you registered on the dashboard |
-| `--dashboard-url` | `DASHBOARD_URL` | `https://sgp-006.tail08a730.ts.net` | the maker dashboard (where you register your team) |
+| `--dashboard-url` | `DASHBOARD_URL` | `https://sgp-006.devcore4.com` | the maker dashboard (where you register your team) |
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
