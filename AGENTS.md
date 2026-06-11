@@ -8,7 +8,7 @@ entry to be **compliant and scored**.
 
 - `market-making/src/strategy.ts` — `decideFairPrice()`: the price to quote. The main place to work.
 - `market-making/src/quoter.ts` — `shouldRequote()`: when to push a quote (keep the signature).
-- `.env` — tuning knobs (`TTL_SECONDS`, `REQUOTE_SECS`, `REQUOTE_BPS`, `FALLBACK_PRICE`, …).
+- `.env` — tuning knobs (`TTL_SECONDS`, `REQUOTE_SECS`, `REQUOTE_BPS`, …).
 - `contracts/` — the venue contract (`CompetitionPropAMM`) is customizable, **as long as** it keeps
   implementing `IPropAMMPeriphery` (the router can't quote/route to it otherwise → zero flow) and
   exposes `owner()` (the registry checks it at registration). `IPropAMMPeriphery.sol` itself must

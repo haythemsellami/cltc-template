@@ -96,7 +96,6 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |
-| `--fallback-price` | `FALLBACK_PRICE` | `65000` | seed price if the feed hasn't ticked yet |
 | `--venue` | `VENUE` | – | reuse a venue you already own (skip deploy + fund) |
 | `--assume-funded` | – | off | skip the interactive funding gate |
 | `--generate-key` | `GENERATE_KEY` | off | mint a FRESH identity into `KEY_FILE` (ignores `PRIVATE_KEY`; refuses to overwrite an existing keyfile) |

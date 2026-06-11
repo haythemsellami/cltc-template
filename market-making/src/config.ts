@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 //  COMPETITION PLUMBING (structure) / YOUR KNOBS (values).
 //  Tune the VALUES freely — in .env, not here: TTL_SECONDS, REQUOTE_SECS, REQUOTE_BPS,
-//  FALLBACK_PRICE, MON_FOR_GAS, TEAM_NAME. The parsing/shape stays, and the endpoint vars
+//  TEAM_NAME. The parsing/shape stays, and the endpoint vars
 //  (OPERATOR_API_URL, FEED_WS_URL, RPC_URL, CHAIN_ID) must keep pointing at the organizer's
 //  infra — quoting off any other data source is outside the competition rules.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -9,7 +9,6 @@
 import { fileURLToPath } from "node:url";
 
 import { config as loadEnv } from "dotenv";
-import { parseEther } from "viem";
 
 import type { Hex } from "./types.js";
 
@@ -43,8 +42,6 @@ export interface BotConfig {
   requoteSecs: number;
   /** Re-quote immediately when the price moves at least this many bps since the last quote. */
   requoteBps: number;
-  /** Fair price (WAD) used to seed the first quote if the feed hasn't ticked yet. */
-  fallbackPriceWad: bigint;
   /** Reuse an already-deployed venue you own instead of deploying a fresh one. */
   venueOverride: Hex | null;
   /** Skip the interactive funding gate (assume the address is already funded). */
@@ -100,10 +97,6 @@ export function loadConfig(argv: string[] = []): BotConfig {
 
   const ttlSeconds = num("--ttl", "TTL_SECONDS", 30);
   const requoteSecs = num("--requote-secs", "REQUOTE_SECS", 15);
-  const fallbackPriceWad = parseEther(pick("--fallback-price", "FALLBACK_PRICE", "65000"));
-  if (fallbackPriceWad <= 0n) {
-    throw new Error("FALLBACK_PRICE must be > 0 — it seeds the first quote before the feed ticks.");
-  }
   if (requoteSecs >= ttlSeconds) {
     console.warn(
       `warning: REQUOTE_SECS (${requoteSecs}) >= TTL_SECONDS (${ttlSeconds}) — your quote can expire before ` +
@@ -126,7 +119,6 @@ export function loadConfig(argv: string[] = []): BotConfig {
     ttlSeconds,
     requoteSecs,
     requoteBps: num("--requote-bps", "REQUOTE_BPS", 15),
-    fallbackPriceWad,
     venueOverride: venueRaw ? (venueRaw as Hex) : null,
     assumeFunded: bools.has("--assume-funded"),
     generateKey: bools.has("--generate-key") || /^(1|true)$/iu.test(process.env.GENERATE_KEY ?? ""),

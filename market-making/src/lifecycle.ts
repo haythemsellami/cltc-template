@@ -497,8 +497,8 @@ export async function run(cfg: BotConfig): Promise<void> {
   if (seenPrice === null) {
     // NEVER seed without a real tick. A live round ticks every second, so no tick within 6s means
     // no round is broadcasting (between rounds, or the feed just connected) — and a made-up seed
-    // (FALLBACK_PRICE) is a live, hittable quote that can be wildly off the asset's scale for a
-    // whole TTL. An unquoted venue simply can't fill; the loop quotes on the first real tick.
+    // price would be a live, hittable quote that can be wildly off the asset's scale for a whole
+    // TTL. An unquoted venue simply can't fill; the loop quotes on the first real tick.
     log("no feed tick — skipping the seed quote (the loop quotes the moment the feed ticks; an unquoted venue can't fill)");
   } else {
     log(`feed price: ${fmt(seenPrice)}`);
@@ -574,15 +574,56 @@ export async function run(cfg: BotConfig): Promise<void> {
   // If the organizer resets the competition mid-run (fresh Registry/Monoper), this maker's
   // registration vanishes with the old registry and it silently stops receiving flow. Poll the
   // manifest; when the registry changes, wait for you to re-register your team on the dashboard
-  // (registration is manual), then re-link the venue — or tell you to restart when the round's
-  // token pair changed (this venue holds the old pair).
+  // (registration is manual), then re-link the venue — and when a new round changes the token
+  // pair, automatically deploy + register a fresh venue for it (redeployForNewPair).
   let watchBusy = false;
   let needRelink = false;
   let relinkNagged = false;
   // Set when the active round's CASH/ASSET differ from this venue's immutables: the venue can no
-  // longer fill, so quoting it only burns the MON budget. Cleared implicitly by the restart that
-  // deploys a venue for the new pair.
+  // longer fill, so quoting it only burns the MON budget. Cleared by the automatic redeploy below
+  // once a venue for the new pair is live.
   let pairStale = false;
+  let redeploying = false;
+
+  /**
+   * AUTO-REDEPLOY on a round's pair change: wait for the new round's CASH/ASSET funding, then
+   * deploy + approve + register a fresh venue for the new pair and resume quoting — the same flow
+   * as a manual restart, without needing one. On failure pairStale stays set and the watch kicks
+   * this off again on its next tick.
+   */
+  async function redeployForNewPair(): Promise<void> {
+    const target = ctx; // snapshot — if the organizer changes the round again mid-flight, abort and retry
+    banner(`Round ${target.round}: new token pair — deploying a fresh venue`);
+    // The new round's capital may not be minted yet — same gate as a cold start.
+    await waitForFunding({
+      client,
+      address,
+      ctx: target,
+      req: computeFundingRequirement(target),
+      log,
+      assumeFunded: cfg.assumeFunded,
+      redeployed: () => manifestChanged(target, cfg.operatorApiUrl),
+    });
+    if (!sameRoundContext(ctx, target)) {
+      log("the round changed again while waiting — the watch retries against the latest round");
+      return;
+    }
+    const deployed = await deployVenue(wallet, client, buildVenueConstructorArgs(venueLabel, address, target));
+    log(`venue deployed un-quoted: ${deployed.address}  (block ${deployed.blockNumber})`);
+    await approveVenueAllowances(wallet, client, deployed.address, target);
+    await registerVenue(wallet, client, target.registry, deployed.address);
+    saveVenueState(cfg, { venue: deployed.address, round: target.round, registry: target.registry });
+    venue = deployed.address;
+    deployBlock = deployed.blockNumber;
+    // The previous round's price scale is meaningless for the new asset — drop strategy memory so
+    // the first quote prices purely off the new feed.
+    recentPrices.length = 0;
+    lastFairWad = null;
+    state.lastFeedPriceWad = null;
+    state.lastQuoteMs = null;
+    pairStale = false;
+    log(`venue ${deployed.address} registered for round ${target.round} — quoting resumes on the next feed tick ✓`);
+  }
   registryWatch = setInterval(() => {
     if (stopped || watchBusy) {
       return;
@@ -609,14 +650,25 @@ export async function run(cfg: BotConfig): Promise<void> {
           ctx = fresh;
           if (pairChanged) {
             // The venue's CASH/ASSET are immutable — it cannot fill the new round's pair. Stop
-            // quoting it (every updatePrice would burn MON on a venue takers skip) until the
-            // restart deploys a fresh venue.
+            // quoting it (every updatePrice would burn MON on a venue takers skip) and auto-deploy
+            // a fresh venue for the new pair (kicked off below).
             pairStale = true;
-            log("→ the round's token pair changed — this venue trades the OLD pair. Quoting PAUSED; restart the bot to deploy a venue for the new round.");
-            return;
+            log("→ the round's token pair changed — this venue trades the OLD pair. Quoting paused; deploying a venue for the new round…");
+          } else {
+            needRelink = true;
+            relinkNagged = false;
           }
-          needRelink = true;
-          relinkNagged = false;
+        }
+        if (pairStale && !redeploying) {
+          redeploying = true;
+          void redeployForNewPair()
+            .catch((error) => {
+              log(`auto-redeploy failed (${error instanceof Error ? error.message : String(error)}) — retrying on the next watch tick`);
+            })
+            .finally(() => {
+              redeploying = false;
+            });
+          return;
         }
         if (needRelink) {
           // A fresh registry has an empty roster, and registration is manual — wait for you to
