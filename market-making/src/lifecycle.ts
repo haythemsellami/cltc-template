@@ -494,19 +494,26 @@ export async function run(cfg: BotConfig): Promise<void> {
   // strategy) from the feed — or a fallback if the feed hasn't ticked yet — before the loop runs.
   banner("Seeding the first quote");
   const seenPrice = await waitForFirstPrice(feed, 6_000);
-  const firstPrice = seenPrice ?? cfg.fallbackPriceWad;
-  log(
-    seenPrice
-      ? `feed price: ${fmt(firstPrice)}`
-      : `feed has no tick yet — seeding fallback ${fmt(firstPrice)} (the loop corrects it)`,
-  );
-  const seeded = await quoteNow(firstPrice, Date.now());
-  if (seeded) {
-    log(`quote #${state.quoteCount}  fairPrice=${fmt(lastFairWad!)}  (feed ${fmt(firstPrice)}, validUntil +${cfg.ttlSeconds}s)`);
-    log("");
-    log("→ Venue is live. Ask the organizer to re-baseline your gas (so it's accounted for) before the round.");
+  if (seenPrice === null && feed.hasRoundSignal() && !feed.isRoundActive()) {
+    // Between rounds there is no tick to price off, and seeding the FALLBACK here is dangerous:
+    // a stale-configured fallback (e.g. the previous round's scale) is a live quote anyone could
+    // hit for the whole TTL. Skip — the loop quotes at the real price on the next round-start.
+    log("no round is live — skipping the seed quote (the loop quotes when the next round starts)");
   } else {
-    log("→ First quote skipped (strategy returned a non-positive price) — the loop retries as the feed moves.");
+    const firstPrice = seenPrice ?? cfg.fallbackPriceWad;
+    log(
+      seenPrice
+        ? `feed price: ${fmt(firstPrice)}`
+        : `feed has no tick yet — seeding fallback ${fmt(firstPrice)} (the loop corrects it)`,
+    );
+    const seeded = await quoteNow(firstPrice, Date.now());
+    if (seeded) {
+      log(`quote #${state.quoteCount}  fairPrice=${fmt(lastFairWad!)}  (feed ${fmt(firstPrice)}, validUntil +${cfg.ttlSeconds}s)`);
+      log("");
+      log("→ Venue is live. Ask the organizer to re-baseline your gas (so it's accounted for) before the round.");
+    } else {
+      log("→ First quote skipped (strategy returned a non-positive price) — the loop retries as the feed moves.");
+    }
   }
 
   // ── market-making loop ────────────────────────────────────────────────────────────────────
