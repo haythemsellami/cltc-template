@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Competition market-making bot: deploy + fund + register a CompetitionPropAMM venue, then quote off the organizer's live WebSocket feed.",
   "scripts": {
+    "prestart": "node scripts/prestart.mjs",
     "start": "tsx src/run.ts",
     "market-make": "tsx src/run.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -31,10 +31,11 @@ repo, it should respect them.
 
 ## Setup
 
-Requires Node ≥ 20 and a built contract (the bot reads the venue ABI + bytecode from `../contracts/out`):
+Requires Node ≥ 20 and Foundry (the bot reads the venue ABI + bytecode from `../contracts/out` —
+`npm start` runs `forge build` for you, so the artifact is always fresh, including after you edit
+the contract):
 
 ```sh
-(cd ../contracts && forge build)   # produces the artifact the bot deploys
 npm install
 cp ../.env.example ../.env          # then fill in the values the organizer gave you
 ```

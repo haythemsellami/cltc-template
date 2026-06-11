@@ -53,7 +53,8 @@ before writing a strategy** — quoting blind concedes that edge to everyone who
 git clone --recurse-submodules https://github.com/haythemsellami/cltc-template.git && cd cltc-template
 #    (already cloned without --recurse-submodules? run:  git submodule update --init --recursive)
 
-# 2. build the contract  (if you skipped --recurse-submodules: forge install first)
+# 2. build + test the contract  (optional — `npm start` runs forge build for you;
+#    if you skipped --recurse-submodules: forge install first)
 cd contracts && forge build && forge test   # 6 tests pass
 cd ..
 
