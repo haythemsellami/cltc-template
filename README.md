@@ -48,23 +48,17 @@ before writing a strategy** — quoting blind concedes that edge to everyone who
 ## Quickstart
 
 ```sh
-# 1. clone (with submodules — they're the contract's dependencies). No fork needed —
-#    your strategy stays local (a public fork would publish it to the other teams).
+# 1. clone (no fork — keep your strategy private)
 git clone --recurse-submodules https://github.com/haythemsellami/cltc-template.git && cd cltc-template
-#    (already cloned without --recurse-submodules? run:  git submodule update --init --recursive)
 
-# 2. build + test the contract  (optional — `npm start` runs forge build for you;
-#    if you skipped --recurse-submodules: forge install first)
-cd contracts && forge build && forge test   # 6 tests pass
-cd ..
+# 2. configure — fill in TEAM_NAME and RPC_URL (the organizer gives you the RPC)
+cp .env.example .env
 
-# 3. configure
-cp .env.example .env       # fill in TEAM_NAME + RPC_URL (the organizer gives you the RPC —
-                           # it's also on the dashboard's About page)
-
-# 4. install + run the bot — builds the contract, generates your key, then runs your entry
+# 3. run — builds the contract, generates your key, prints your address, market-makes
 cd market-making && npm install && npm start
 ```
+
+Cloned without `--recurse-submodules`? Run `git submodule update --init --recursive` once.
 
 `npm start` builds the contract (incremental — instant when unchanged), generates your key on the
 first run (persisted in `.venue-key`) and prints **your address** — send it to the organizer to get
