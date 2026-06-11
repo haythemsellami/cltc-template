@@ -15,6 +15,7 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { nonceManager } from "viem/nonce";
 
 import type { Hex } from "./types.js";
 
@@ -38,7 +39,11 @@ export function createReadClient(chainId: number, rpcUrl: string): PublicClient 
 }
 
 export function accountFromKey(key: Hex): Account {
-  return privateKeyToAccount(key);
+  // Local nonce tracking (viem's nonceManager): the RPC endpoint is load-balanced, so reading the
+  // "pending" nonce from it can lag a tx another node just accepted — re-using the nonce and
+  // getting "an existing transaction had higher priority" rejections under fast requote cadences.
+  // A locally-incremented nonce makes back-to-back updatePrice sends collision-free.
+  return privateKeyToAccount(key, { nonceManager });
 }
 
 export function createWalletClientFor(account: Account, chainId: number, rpcUrl: string): WalletClient {
