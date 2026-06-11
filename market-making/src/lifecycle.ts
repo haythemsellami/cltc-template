@@ -532,7 +532,7 @@ export async function run(cfg: BotConfig): Promise<void> {
   });
 
   async function maybeQuote(): Promise<void> {
-    if (stopped || inFlight || !venue) {
+    if (stopped || inFlight || !venue || pairStale) {
       return;
     }
     // No live round = nothing to make a market for: every updatePrice would just burn your fixed
@@ -574,6 +574,10 @@ export async function run(cfg: BotConfig): Promise<void> {
   let watchBusy = false;
   let needRelink = false;
   let relinkNagged = false;
+  // Set when the active round's CASH/ASSET differ from this venue's immutables: the venue can no
+  // longer fill, so quoting it only burns the MON budget. Cleared implicitly by the restart that
+  // deploys a venue for the new pair.
+  let pairStale = false;
   registryWatch = setInterval(() => {
     if (stopped || watchBusy) {
       return;
@@ -588,13 +592,22 @@ export async function run(cfg: BotConfig): Promise<void> {
           return; // between rounds / mid-reset — wait for the next active round to compare against
         }
         if (!sameRoundContext(ctx, fresh)) {
-          log(`organizer redeployed (registry ${ctx.registry} → ${fresh.registry}) — refreshing…`);
+          const registryChanged = fresh.registry.toLowerCase() !== ctx.registry.toLowerCase();
+          log(
+            registryChanged
+              ? `organizer redeployed (registry ${ctx.registry} → ${fresh.registry}) — refreshing…`
+              : `round changed (#${ctx.round} → #${fresh.round}) — refreshing…`,
+          );
           const pairChanged =
             fresh.cashToken.toLowerCase() !== ctx.cashToken.toLowerCase() ||
             fresh.assetToken.toLowerCase() !== ctx.assetToken.toLowerCase();
           ctx = fresh;
           if (pairChanged) {
-            log("→ the round's token pair changed — this venue trades the OLD pair. Restart the bot to deploy a venue for the new round.");
+            // The venue's CASH/ASSET are immutable — it cannot fill the new round's pair. Stop
+            // quoting it (every updatePrice would burn MON on a venue takers skip) until the
+            // restart deploys a fresh venue.
+            pairStale = true;
+            log("→ the round's token pair changed — this venue trades the OLD pair. Quoting PAUSED; restart the bot to deploy a venue for the new round.");
             return;
           }
           needRelink = true;
