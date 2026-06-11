@@ -33,7 +33,7 @@ if (result.error) {
   }
   console.error(
     "Foundry (`forge`) is not available and no venue artifact exists yet.\n" +
-      "Install it (https://book.getfoundry.sh/getting-started/installation), then:\n" +
+      "Install it (https://docs.monad.xyz/tooling-and-infra/toolkits/monad-foundry#installation), then:\n" +
       "  cd ../contracts && forge build",
   );
   process.exit(1);

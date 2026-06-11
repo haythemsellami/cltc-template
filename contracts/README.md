@@ -23,7 +23,7 @@ test/CompetitionPropAMM.t.sol     # a starting test suite — extend it
 
 ## Setup
 
-Requires [Foundry](https://book.getfoundry.sh/getting-started/installation). Dependencies are git
+Requires [Foundry](https://docs.monad.xyz/tooling-and-infra/toolkits/monad-foundry#installation). Dependencies are git
 submodules — after cloning:
 
 ```sh

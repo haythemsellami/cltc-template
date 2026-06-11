@@ -39,7 +39,7 @@ before writing a strategy** — quoting blind concedes that edge to everyone who
 
 ## Prerequisites
 
-- [Foundry](https://book.getfoundry.sh/getting-started/installation) (for the contract)
+- [Foundry](https://docs.monad.xyz/tooling-and-infra/toolkits/monad-foundry#installation) (for the contract)
 - [Node.js](https://nodejs.org) ≥ 20 (for the bot)
 - The RPC URL the organizer gives you (also on the dashboard's About page). The **organizer**
   funds your address with CASH + ASSET + MON; the bot generates your wallet key on first run. The
