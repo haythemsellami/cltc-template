@@ -191,11 +191,17 @@ export async function run(cfg: BotConfig): Promise<void> {
   /** Make sure this wallet is enrolled on `registry` — self-registers TEAM_NAME (the bot's own
    *  transaction) and falls back to the manual dashboard flow only if that tx fails. Re-registering
    *  is how the registry RENAMES a team, so an enrolled wallet whose on-chain name drifted from
-   *  TEAM_NAME re-registers to update it (skipped when TEAM_NAME is still the default). */
-  async function ensureRegistered(registry: Hex): Promise<string> {
+   *  TEAM_NAME re-registers to update it — but ONLY while no round has been deployed yet
+   *  (`allowRename`): once the competition has rounds, the name is locked so a team keeps one
+   *  identity across every round's standings. */
+  async function ensureRegistered(registry: Hex, allowRename = false): Promise<string> {
     if (await isMarketMakerRegistered(client, registry, address).catch(() => false)) {
       const name = (await readTeamName(client, registry, address).catch(() => null)) || cfg.teamName;
       if (name !== cfg.teamName && cfg.teamName !== "my-team") {
+        if (!allowRename) {
+          log(`on the roster as "${name}" ✓ (TEAM_NAME is "${cfg.teamName}", but the name is locked once rounds exist)`);
+          return name;
+        }
         try {
           log(`on the roster as "${name}" but TEAM_NAME is "${cfg.teamName}" — updating the team name…`);
           await registerTeam(wallet, client, registry, cfg.teamName);
@@ -248,8 +254,10 @@ export async function run(cfg: BotConfig): Promise<void> {
   // Registering early puts this wallet on the roster the organizer funds against, so when a round
   // starts the bot only has to wait for its CASH/ASSET to arrive.
   banner("Team registration");
-  const earlyRegistry = await waitForRegistry(cfg.operatorApiUrl, log);
-  await ensureRegistered(earlyRegistry);
+  const earlyInfra = await waitForRegistry(cfg.operatorApiUrl, log);
+  // Renaming (re-registering under a changed TEAM_NAME) is allowed only before the first round
+  // exists — after that the name is locked for the rest of the competition.
+  await ensureRegistered(earlyInfra.registry, !earlyInfra.hasRounds);
 
   // ── round gate ─────────────────────────────────────────────────────────────────────────────
   // The bot idles here until the organizer has an active round — `npm start` any time, even days

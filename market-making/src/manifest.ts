@@ -61,9 +61,13 @@ export async function fetchRoundContext(operatorApiUrl: string): Promise<RoundCo
 /**
  * Block until the competition INFRA exists (a manifest with a registry) — rounds come later. Team
  * registration is registry-level and happens before any round, so the bot only needs this much to
- * enroll itself.
+ * enroll itself. `hasRounds` reports whether any round was already deployed — once one exists the
+ * team name is locked (the standings track it across rounds).
  */
-export async function waitForRegistry(operatorApiUrl: string, log: (m: string) => void): Promise<Hex> {
+export async function waitForRegistry(
+  operatorApiUrl: string,
+  log: (m: string) => void,
+): Promise<{ registry: Hex; hasRounds: boolean }> {
   let lastReason = "";
   let polls = 0;
   for (;;) {
@@ -72,7 +76,7 @@ export async function waitForRegistry(operatorApiUrl: string, log: (m: string) =
       if (res.ok) {
         const manifest = (await res.json()) as DeploymentManifest | null;
         if (manifest?.registry) {
-          return manifest.registry;
+          return { registry: manifest.registry, hasRounds: (manifest.rounds?.length ?? 0) > 0 };
         }
       }
       const reason = "no deployment manifest yet — the organizer hasn't deployed infra";
