@@ -531,8 +531,12 @@ export async function run(cfg: BotConfig): Promise<void> {
     log(`feed: round ${round ?? "?"} ended — pausing quotes until the next round (saving your MON budget)`);
   });
 
+  // Set after an out-of-MON failure: retrying every tick can't succeed and floods the log, so
+  // quote attempts pause briefly between retries (a top-up resumes quoting within a minute).
+  let gasPausedUntil = 0;
+
   async function maybeQuote(): Promise<void> {
-    if (stopped || inFlight || !venue || pairStale) {
+    if (stopped || inFlight || !venue || pairStale || Date.now() < gasPausedUntil) {
       return;
     }
     // No live round = nothing to make a market for: every updatePrice would just burn your fixed
@@ -557,7 +561,12 @@ export async function run(cfg: BotConfig): Promise<void> {
       }
     } catch (error) {
       // venue.ts already rethrows one-line readable errors (revert name / out-of-gas hint).
-      log(`quote failed: ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      log(`quote failed: ${msg}`);
+      if (/insufficient balance|out of MON/iu.test(msg)) {
+        gasPausedUntil = Date.now() + 60_000;
+        log("→ no MON left for gas — pausing quote attempts (retrying once a minute; a top-up resumes quoting, otherwise you're out for the round)");
+      }
     } finally {
       inFlight = false;
     }
