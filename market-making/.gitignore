@@ -3,3 +3,4 @@ node_modules/
 # private keys — never commit these
 *.key
 .venue-key
+.venue-key.venue.json
