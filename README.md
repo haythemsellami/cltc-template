@@ -41,9 +41,9 @@ before writing a strategy** — quoting blind concedes that edge to everyone who
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (for the contract)
 - [Node.js](https://nodejs.org) ≥ 20 (for the bot)
-- A Monad-testnet wallet key. The **organizer** funds your address with CASH + ASSET + MON, grants
-  you tailnet access to the competition host, and gives you the RPC URL. The bot's
-  `OPERATOR_API_URL` / `FEED_WS_URL` / `DASHBOARD_URL` already default to the live host.
+- The RPC URL the organizer gives you (also on the dashboard's About page). The **organizer**
+  funds your address with CASH + ASSET + MON; the bot generates your wallet key on first run. The
+  bot's `OPERATOR_API_URL` / `FEED_WS_URL` / `DASHBOARD_URL` already default to the live host.
 
 ## Quickstart
 
@@ -59,20 +59,22 @@ cd contracts && forge build && forge test   # 6 tests pass
 cd ..
 
 # 3. configure
-cp .env.example .env       # fill in PRIVATE_KEY + the URLs the organizer gave you
+cp .env.example .env       # fill in TEAM_NAME + RPC_URL (the organizer gives you the RPC —
+                           # it's also on the dashboard's About page)
 
-# 4. install + run the bot — deploys, funds, registers your venue, then market-makes
+# 4. install + run the bot — builds the contract, generates your key, then runs your entry
 cd market-making && npm install && npm start
 ```
 
-`npm start` listens until the organizer has an active round (start it any time — it picks the
-round up the moment it goes live and prints its details: tokens, recommended capital, the feed's
-market), then waits for you to **register your team manually on the maker dashboard** (Register
-tab, connected as the bot's printed wallet — the registry enrolls the signer, and your venue's
-owner must be that same address), waits for the round capital the organizer mints against the
-roster, deploys your venue, max-approves it for CASH+ASSET (your inventory stays in your wallet),
-registers it, seeds the first quote, then loops — re-pricing from your strategy. `Ctrl+C` prints a
-summary. Re-running deploys a fresh venue; pass `VENUE=0x…` to keep market-making the same one.
+`npm start` builds the contract (incremental — instant when unchanged), generates your key on the
+first run (persisted in `.venue-key`) and prints **your address** — send it to the organizer to get
+funded. The moment MON gas lands the bot **registers your team automatically**, then listens until
+the organizer has an active round (start it any time — it picks the round up the moment it goes
+live), waits for the round capital the organizer mints against the roster, deploys your venue,
+max-approves it for CASH+ASSET (your inventory stays in your wallet), registers it, seeds the first
+quote, then loops — re-pricing from your strategy. `Ctrl+C` prints a summary. Restarting **reuses
+your deployed venue** when the contract didn't change and deploys + registers the new build when it
+did; pass `VENUE=0x…` to pin a specific venue.
 
 ## Make it yours
 

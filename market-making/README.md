@@ -37,7 +37,7 @@ the contract):
 
 ```sh
 npm install
-cp ../.env.example ../.env          # then fill in the values the organizer gave you
+cp ../.env.example ../.env          # then fill in TEAM_NAME + RPC_URL (the organizer gives you the RPC)
 ```
 
 ## Run the full flow
