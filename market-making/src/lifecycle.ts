@@ -189,10 +189,23 @@ export async function run(cfg: BotConfig): Promise<void> {
   }
 
   /** Make sure this wallet is enrolled on `registry` — self-registers TEAM_NAME (the bot's own
-   *  transaction) and falls back to the manual dashboard flow only if that tx fails. */
+   *  transaction) and falls back to the manual dashboard flow only if that tx fails. Re-registering
+   *  is how the registry RENAMES a team, so an enrolled wallet whose on-chain name drifted from
+   *  TEAM_NAME re-registers to update it (skipped when TEAM_NAME is still the default). */
   async function ensureRegistered(registry: Hex): Promise<string> {
     if (await isMarketMakerRegistered(client, registry, address).catch(() => false)) {
       const name = (await readTeamName(client, registry, address).catch(() => null)) || cfg.teamName;
+      if (name !== cfg.teamName && cfg.teamName !== "my-team") {
+        try {
+          log(`on the roster as "${name}" but TEAM_NAME is "${cfg.teamName}" — updating the team name…`);
+          await registerTeam(wallet, client, registry, cfg.teamName);
+          log(`team renamed to "${cfg.teamName}" ✓`);
+          return cfg.teamName;
+        } catch (e) {
+          log(`rename failed (${e instanceof Error ? e.message : String(e)}) — keeping "${name}"`);
+          return name;
+        }
+      }
       log(`on the roster as "${name}" ✓`);
       return name;
     }

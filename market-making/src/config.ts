@@ -13,10 +13,11 @@ import { parseEther } from "viem";
 
 import type { Hex } from "./types.js";
 
-// Load the repo-root .env (one config file for both the contracts and the bot), then let any .env in
-// the current directory override it. Real environment variables always win over both.
-loadEnv({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
+// dotenv never overwrites a variable that is already set, so load order IS precedence:
+// real environment > .env in the current directory > the repo-root .env (the shared config file).
+// (Root-first used to win here, silently ignoring a market-making/.env override.)
 loadEnv();
+loadEnv({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
 
 export interface BotConfig {
   rpcUrl: string;
