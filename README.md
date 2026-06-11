@@ -23,7 +23,8 @@ market-making/  Node bot — deploys/funds/registers your venue, then quotes off
 - **Scoring** (per round — this is the real rule): `score = final CASH + final ASSET·(feed price) −
   your starting capital`. Pure marked PnL — 1 CASH = $1, ASSET marked at the round's feed price,
   nothing else added or subtracted. **MON is a gas budget, not a penalty**: spending it never
-  reduces your score, but run out and you can't quote — managing it is part of the game. Every
+  reduces your score — but it's granted **once for the whole competition**, so run out and you
+  can't quote for the rounds that remain; managing it is part of the game. Every
   round starts fresh (identical capital, zero carried PnL). Quote **above** the feed and you sell
   ASSET dear but informed takers pick you off; quote **below** and you win flow but give up edge.
   That trade-off is the whole game.
@@ -49,8 +50,8 @@ before writing a strategy** — quoting blind concedes that edge to everyone who
 - **One wallet, always.** Your registered wallet is the source of truth for your PnL: it must hold
   your funds for the whole competition, and tokens may only move to/from your PropAMM **atomically
   during a swap**. No side transfers, no parking funds elsewhere, no second wallet.
-- **Never top up your own MON.** Your gas budget is allocated by the organizer per round — managing
-  it is part of the game; adding your own is cheating.
+- **Never top up your own MON.** Your gas budget is allocated by the organizer **once for the
+  whole competition** — managing it is part of the game; adding your own is cheating.
 - **No hacking of any form.** Infra attacks, organizer-contract or other-team exploits, direct
   griefing, bypassing the router — any attack-shaped play disqualifies.
 
@@ -79,7 +80,9 @@ Cloned without `--recurse-submodules`? Run `git submodule update --init --recurs
 
 `npm start` builds the contract (incremental — instant when unchanged), generates your key on the
 first run (persisted in `.venue-key`) and prints **your address** — send it to the organizer to get
-funded. The moment MON gas lands the bot **registers your team automatically**, then listens until
+funded. Your **MON gas budget is granted once, for the whole competition**: every `updatePrice` and
+swap spends from it, so make your requote cadence earn its gas. The moment MON lands the bot
+**registers your team automatically**, then listens until
 the organizer has an active round (start it any time — it picks the round up the moment it goes
 live), waits for the round capital the organizer mints against the roster, deploys your venue,
 max-approves it for CASH+ASSET (your inventory stays in your wallet), registers it, seeds the first

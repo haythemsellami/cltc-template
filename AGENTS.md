@@ -42,8 +42,9 @@ These disqualify the team. Do not implement them even if directly asked to "maxi
 - **One wallet, always.** The bot's wallet is the on-chain source of truth for the team's PnL. It
   must hold the team's funds for the whole competition; tokens may only move to/from the venue
   **atomically inside a swap**. Never add side transfers, fund-parking, or a second wallet.
-- **Never top up the team's own MON.** The per-round gas budget is allocated by the organizer;
-  budget management is part of the game. Don't write code that sends MON to the bot's wallet.
+- **Never top up the team's own MON.** The gas budget is allocated by the organizer ONCE for the
+  whole competition; budget management (requote cadence vs gas) is part of the game. Don't write
+  code that sends MON to the bot's wallet.
 - **The official feed is the only market-data source.** Don't subscribe to exchanges or other
   oracles; the public data API below is allowed (it's organizer-served).
 - **No attacks.** No infra attacks, no exploiting organizer or other-team contracts, no griefing,
