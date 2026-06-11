@@ -69,12 +69,11 @@ The feed subscription follows the round automatically — the bot subscribes by 
 across round changes. Set `FEED_PRICE_STREAM=<symbol>@<kind>` only to pin one exact stream (or
 against an older feed server without `?kinds=` support).
 
-Restarts are cheap: **Ctrl+C → edit `src/strategy.ts` → `npm start` reuses your deployed venue**
-automatically — the bot compares the on-chain venue's runtime bytecode against your current
-`forge build` (immutables masked) and only redeploys when the CONTRACT actually changed (or a new
-round/registry started). Editing the venue contract + `forge build` therefore deploys fresh on the
-next start, exactly as you'd want. To pin a specific venue manually, `VENUE=0xYourVenue npm start`
-still wins over the saved state.
+Restarts are cheap: **Ctrl+C → edit → `npm start`**. The bot rebuilds the contract itself and
+compares the on-chain venue's runtime bytecode against the fresh build (immutables masked): edits
+to `src/strategy.ts` alone **reuse your deployed venue**, while a changed contract deploys and
+registers the new build automatically (likewise on a new round/registry). To pin a specific venue
+manually, `VENUE=0xYourVenue npm start` still wins over the saved state.
 
 ## Configuration
 
@@ -92,8 +91,8 @@ the RPC URL, tailnet access, and funds your address. For a local dry-run, overri
 | `--feed-stream` | `FEED_PRICE_STREAM` | `aggTrade` | which stream KIND to price off (follows the live round) |
 | `--rpc-url` | `RPC_URL` | `https://testnet-rpc.monad.xyz` | Monad testnet RPC (organizer may give you a faster endpoint) |
 | `--chain-id` | `CHAIN_ID` | `10143` | Monad testnet chain id |
-| `--team` | `TEAM_NAME` | `my-team` | fallback venue label — your ROSTER name is what you registered on the dashboard |
-| `--dashboard-url` | `DASHBOARD_URL` | `https://sgp-006.devcore4.com` | the maker dashboard (where you register your team) |
+| `--team` | `TEAM_NAME` | `my-team` | your team name — the bot self-registers it on-chain (renameable only until the first round exists) |
+| `--dashboard-url` | `DASHBOARD_URL` | `https://sgp-006.devcore4.com` | the maker dashboard (leaderboard / scoreboard / live view) |
 | `--ttl` | `TTL_SECONDS` | `30` | quote validity window (`validUntil = now + ttl`) |
 | `--requote-secs` | `REQUOTE_SECS` | `15` | refresh at least this often (keeps the quote live) |
 | `--requote-bps` | `REQUOTE_BPS` | `15` | re-quote immediately on a feed move this large |

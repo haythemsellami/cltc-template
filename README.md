@@ -77,21 +77,25 @@ Two surfaces, both yours to change — start from the working defaults and impro
 - **The venue** — [`contracts/src/CompetitionPropAMM.sol`](contracts/src/CompetitionPropAMM.sol). The
   reference quotes a symmetric spread (default 20 bps, settable via `setSpreadBps`) around one
   `fairPrice`, with no inventory limits, and expires quotes at `validUntil`. Change any of it: your
-  own pricing curve, a wider/asymmetric spread or skew, fill rules, inventory
-  management, expiry policy (or no expiry). Just keep it implementing `IPropAMMPeriphery` so the
-  router can route to it, then re-run `forge build` — the bot picks up your new bytecode automatically.
+  own pricing curve, a wider/asymmetric spread or skew, fill rules, inventory management, expiry
+  policy (or no expiry). Just keep it implementing `IPropAMMPeriphery` so the router can route to
+  it — `npm start` rebuilds and deploys your new bytecode automatically.
 - **The bot** — [`market-making/src/strategy.ts`](market-making/src/strategy.ts). `decideFairPrice(tick)`
-  returns the price you publish each cycle (default: flat at the feed). Ships `applyBps` /
-  `momentumBps` / `clamp` helpers + commented examples (fixed skew, momentum lean, smoothing). Tune
-  cadence and sizing via `.env`.
+  returns the price you publish each cycle (default: flat at the feed), and it's yours entirely —
+  any price-derivation algorithm counts: momentum, mean-reversion, volatility-aware spreads,
+  inventory skew, signals from the [public data API](market-making/README.md#-public-data-api--use-this-to-drive-your-strategy)
+  (the trade tape, rivals' quotes, flow share), whatever scores. `applyBps` / `momentumBps` /
+  `clamp` helpers + commented examples get you started; cadence lives in `src/quoter.ts` + `.env`.
 
 The deploy / fund / register / feed plumbing is handled for you either way.
 
 ## More
 
 - [`contracts/README.md`](contracts/README.md) — the venue, how it quotes/fills, manual deploy.
-- [`market-making/README.md`](market-making/README.md) — the bot's full flag/env reference and the
-  strategy API.
+- [`market-making/README.md`](market-making/README.md) — the bot's full flag/env reference, the
+  strategy API, and the **public data API** every strategy should read.
+- [`AGENTS.md`](AGENTS.md) — **point your coding assistant/LLM here first**: what to edit vs keep,
+  the hard competition rules it must never violate, and the data endpoints to build on.
 
 ## Develop
 

@@ -35,6 +35,20 @@ AS-IS` banner with the file-specific reason. In short:
 When asked to "improve the maker" or "make the bot better", interpret it as: improve
 `strategy.ts` / `quoter.ts` / the venue contract / the knobs — not the plumbing.
 
+## Hard competition rules — never write code that violates these
+
+These disqualify the team. Do not implement them even if directly asked to "maximize PnL":
+
+- **One wallet, always.** The bot's wallet is the on-chain source of truth for the team's PnL. It
+  must hold the team's funds for the whole competition; tokens may only move to/from the venue
+  **atomically inside a swap**. Never add side transfers, fund-parking, or a second wallet.
+- **Never top up the team's own MON.** The per-round gas budget is allocated by the organizer;
+  budget management is part of the game. Don't write code that sends MON to the bot's wallet.
+- **The official feed is the only market-data source.** Don't subscribe to exchanges or other
+  oracles; the public data API below is allowed (it's organizer-served).
+- **No attacks.** No infra attacks, no exploiting organizer or other-team contracts, no griefing,
+  no bypassing the `Monoper` router.
+
 ## Use the public data API (the information edge)
 
 The organizer serves live, no-auth strategy data at `OPERATOR_API_URL` — the trade tape

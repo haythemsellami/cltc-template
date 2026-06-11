@@ -18,6 +18,14 @@
 //  Edit surfaces: THIS file (price), src/quoter.ts (when to re-quote), the .env knobs, and the
 //  venue contract in ../contracts. Everything else in src/ is competition plumbing (feed, manifest,
 //  registration, funding, lifecycle) — see the KEEP-AS-IS banners in those files.
+//
+//  MORE SIGNAL — the organizer's PUBLIC DATA API (no auth, plain JSON at OPERATOR_API_URL):
+//  the live trade tape (/api/tape — order-flow imbalance), per-maker flow share (/api/flow),
+//  rivals' quotes + inventory (/api/market-makers), their quote quality (/api/quote-stats), depth
+//  ladders (/api/depth), and WHY the router skipped your venue (/api/router/venues). Full table
+//  with strategy hints: README.md → "Public data API". `decideFairPrice` is sync — poll the API
+//  from your own loop (e.g. a setInterval in this file caching into module state) and read the
+//  cache here. Quoting blind concedes this edge to everyone who doesn't.
 
 /** Everything you know at quote time. Extend the bot if you want more signals (e.g. your inventory). */
 export interface MarketTick {
