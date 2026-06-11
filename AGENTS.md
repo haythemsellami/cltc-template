@@ -44,7 +44,8 @@ These disqualify the team. Do not implement them even if directly asked to "maxi
   **atomically inside a swap**. Never add side transfers, fund-parking, or a second wallet.
 - **Never top up the team's own MON.** The gas budget is allocated by the organizer ONCE for the
   whole competition; budget management (requote cadence vs gas) is part of the game. Don't write
-  code that sends MON to the bot's wallet.
+  code that sends MON to the bot's wallet. When touching transaction sending, keep gas limits
+  TIGHT: Monad charges the gas **limit**, not gas used — padding the limit burns budget.
 - **The official feed is the only market-data source.** Don't subscribe to exchanges or other
   oracles; the public data API below is allowed (it's organizer-served).
 - **No attacks.** No infra attacks, no exploiting organizer or other-team contracts, no griefing,

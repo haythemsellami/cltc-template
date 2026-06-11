@@ -3,7 +3,8 @@
 //  Replace the policy below freely (e.g. requote on volatility, on inventory, on book skew).
 //  Keep the shouldRequote() signature — lifecycle.ts calls it every second — and remember each
 //  push is an on-chain updatePrice that spends your fixed MON budget: quote often enough that
-//  your TTL never lapses mid-round, but no more than your edge is worth.
+//  your TTL never lapses mid-round, but no more than your edge is worth. (If you customize tx
+//  sending anywhere, keep gas limits tight — Monad charges the gas LIMIT, not gas used.)
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
 import type { QuoterState } from "./types.js";

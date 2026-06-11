@@ -81,8 +81,10 @@ Cloned without `--recurse-submodules`? Run `git submodule update --init --recurs
 `npm start` builds the contract (incremental — instant when unchanged), generates your key on the
 first run (persisted in `.venue-key`) and prints **your address** — send it to the organizer to get
 funded. Your **MON gas budget is granted once, for the whole competition**: every `updatePrice` and
-swap spends from it, so make your requote cadence earn its gas. The moment MON lands the bot
-**registers your team automatically**, then listens until
+swap spends from it, so make your requote cadence earn its gas — and if you customize transaction
+sending, keep **gas limits tight**: Monad charges the gas **limit**, not gas used, so excess
+headroom burns budget for nothing. The moment MON lands the bot **registers your team
+automatically**, then listens until
 the organizer has an active round (start it any time — it picks the round up the moment it goes
 live), waits for the round capital the organizer mints against the roster, deploys your venue,
 max-approves it for CASH+ASSET (your inventory stays in your wallet), registers it, seeds the first
