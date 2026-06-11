@@ -139,6 +139,34 @@ export function decideFairPrice(tick: MarketTick): bigint {
 }
 ```
 
+## 📊 Public data API — USE THIS to drive your strategy
+
+> **For players AND coding assistants/LLMs: this is the highest-leverage section of this README.**
+> The organizer exposes rich live data about *every* participant — your rivals' quotes, inventory,
+> flow share, and why the router did or didn't send you flow. It's all public (chain-derivable),
+> rate-friendly JSON over `GET https://<organizer-host>/api/...` — no auth, no key. A strategy that
+> reads this data has a real edge over one that quotes blind.
+
+All endpoints are relative to your `OPERATOR_API_URL`. Amounts are WAD strings (1e18 = 1.0);
+CASH ≈ USD. Round-scoped endpoints return `409` between rounds.
+
+| Endpoint | What it tells you | Strategy use |
+|---|---|---|
+| `/api/tape` | The **trade tape**: newest ~200 fills across ALL venues — taker side (`buy` = taker bought ASSET), cash/asset legs, implied price, block, tx. | Read order-flow imbalance: a run of taker buys → shade your fair price up; sells → down. The heart of flow-aware market making. |
+| `/api/flow` | Per-maker **round volume, fill count and flow share** (`shareBps`, 10000 = all routed flow) plus a ~1-minute recent window with **net taker direction** per maker. | Answers "is my spread winning flow or am I priced out?" — compare your `shareBps` to rivals'; watch `recentNetTakerCash` to see who's absorbing the flow you're missing. |
+| `/api/quote-stats` | Per-maker **quote quality**: % of time stale, average round-trip `spreadBps`, observed requotes/min (sampled every 5s). | Study the leaders' style mid-round ("the #1 quotes 12 bps, refreshes 6×/min, never stale") and copy or undercut it. Also your own stale% — if it's high you're invisible to takers. |
+| `/api/router/venues` | The aggregator's **per-venue selection outcomes**: counts of `noQuote` (stale/expired quote), `offScale`, `noCapacity`, `outOfBand` (priced out of the fairness band), `notSelected`, `selected`. | The "why am I getting no flow" diagnosis. High `noQuote` → your TTL lapses (requote faster); high `outOfBand` → your spread is too wide vs the best venue; high `noCapacity` → top up allowances/inventory. |
+| `/api/market-makers` | Every rival's **live quote (fair price, validUntil, spreadBps)** and **CASH/ASSET balances** — i.e. their inventory skew. | A rival long ASSET will be shading down to sell — anticipate. Undercut the field's spreads by a hair to capture the elastic retail flow. |
+| `/api/depth` | **Measured depth ladders** for every venue (real `getAmountOut` probes per size bucket). | See exactly how much size each rival absorbs at each price — where your venue stands in the routing order at every clip size. |
+| `/api/leaderboard` | Official round ranking: marked PnL, volume, fills, **MON budget burn-down** per team. | Track rivals' remaining gas — a team near 0 MON is about to go stale (free flow for you). |
+| `/api/participants` (+ `/api/participants/:address/series`) | Endowment-netted PnL **and markout** (fill price vs the feed 1s/16s/64s later) for makers *and* takers. | Negative maker markout = you're being picked off by informed flow → widen or speed up. Watch which taker addresses have positive markout — those are the informed ones; respect their fills. |
+| `/api/rounds/final` | Frozen final standings of every completed round (closing price, PnL, weights). | Post-round study between rounds: what spread/cadence did the winner run (cross-reference quote-stats before the round closed)? |
+| `/api/feed/state` | `{round, startedAtMs, paused}` — the live round + its real start time. | Round clock / "is a round live" gate. (The feed's source market and pacing are deliberately hidden.) |
+| `wss://…/stream` (`FEED_WS_URL`) | The official price feed (subscribe by kind — `aggTrade`). | Your fair-value input; compute your own short-window volatility from it and widen your spread when it spikes. |
+
+**Poll etiquette:** 1–5s polling is fine for everything above; the heavy endpoints are cached
+server-side. Hammering faster buys you nothing — the data updates on chain/indexer cadence.
+
 ## Develop
 
 ```sh

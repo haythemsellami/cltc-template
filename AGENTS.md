@@ -35,6 +35,18 @@ AS-IS` banner with the file-specific reason. In short:
 When asked to "improve the maker" or "make the bot better", interpret it as: improve
 `strategy.ts` / `quoter.ts` / the venue contract / the knobs — not the plumbing.
 
+## Use the public data API (the information edge)
+
+The organizer serves live, no-auth strategy data at `OPERATOR_API_URL` — the trade tape
+(`/api/tape`), per-maker flow share (`/api/flow`), rivals' quote quality (`/api/quote-stats`), the
+router's per-venue routing outcomes (`/api/router/venues` — *why* this venue got skipped: stale
+quote / priced out of band / no capacity), rivals' live quotes + inventory (`/api/market-makers`),
+measured depth ladders (`/api/depth`), and per-participant markout (`/api/participants`). The full
+table with strategy hints is in `market-making/README.md` → **"Public data API"**. A good strategy
+*reads this data* (poll 1–5s; fetch in the bot alongside the feed) instead of quoting blind —
+e.g. shade with tape imbalance, requote faster when `/api/router/venues` shows `noQuote` skips,
+undercut the field's average spread from `/api/quote-stats`.
+
 ## Validation
 
 ```sh

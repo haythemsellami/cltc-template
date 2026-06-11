@@ -31,6 +31,12 @@ and the bot re-quotes to keep it live — that's just one simple design. A smart
 pricing curve, spread/skew, inventory rules, a different expiry policy or none at all) and a smarter
 bot both count. Anything that scores higher within the rule above wins.
 
+**Third surface — information.** The organizer exposes a public **data API**: the live trade tape,
+every rival's quote/spread/inventory, per-maker flow share, quote-quality stats, and the router's
+per-venue "why you didn't get this order" outcomes. **Read
+[`market-making/README.md` → "Public data API"](market-making/README.md#-public-data-api--use-this-to-drive-your-strategy)
+before writing a strategy** — quoting blind concedes that edge to everyone who doesn't.
+
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (for the contract)
