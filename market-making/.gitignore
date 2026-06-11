@@ -2,5 +2,4 @@ node_modules/
 .env
 # private keys — never commit these
 *.key
-.venue-key
-.venue-key.venue.json
+.venue-key*

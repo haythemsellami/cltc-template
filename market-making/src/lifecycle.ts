@@ -9,7 +9,7 @@
 //  not this flow: reordering or removing steps produces a venue that can't fill or isn't scored.
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 import { formatEther, formatUnits, type Account, type PublicClient, type WalletClient } from "viem";
 
@@ -38,6 +38,49 @@ import {
 } from "./venue.js";
 
 const RECENT_PRICES_CAP = 128;
+
+/** Is `pid` a live process? (EPERM = alive but not ours, which still counts.) */
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * One bot per identity: two instances signing with the same key fight over nonces (every other
+ * updatePrice reverts with "an existing transaction had higher priority") and double-quote. The
+ * lock is a pidfile next to the keyfile; a stale lock (crashed/killed bot) is taken over.
+ */
+function acquireInstanceLock(keyFile: string, logFn: (m: string) => void): void {
+  const lockPath = `${keyFile}.lock`;
+  let holder: number | null = null;
+  try {
+    holder = Number(readFileSync(lockPath, "utf8").trim()) || null;
+  } catch {
+    /* no lock yet */
+  }
+  if (holder && holder !== process.pid && pidAlive(holder)) {
+    throw new Error(
+      `another bot instance (pid ${holder}) is already running with this identity (${keyFile}).\n` +
+        `Two instances sharing one key fight over nonces and double-quote — stop the other one first ` +
+        `(kill ${holder}), or run a second maker with its own identity: --key-file .venue-key-2 --generate-key`,
+    );
+  }
+  if (holder && holder !== process.pid) {
+    logFn(`stale instance lock from pid ${holder} (previous run crashed?) — taking over`);
+  }
+  writeFileSync(lockPath, `${process.pid}\n`);
+  process.on("exit", () => {
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      /* already gone */
+    }
+  });
+}
 
 const log = (message = ""): void => console.log(message);
 const banner = (title: string): void => {
@@ -173,6 +216,7 @@ async function waitForTeamRegistration(deps: {
 export async function run(cfg: BotConfig): Promise<void> {
   banner("PropAMM competition — market maker");
   const key = resolveIdentity(cfg);
+  acquireInstanceLock(cfg.keyFile, log);
   const account: Account = accountFromKey(key);
   const address = account.address as Hex;
   const client: PublicClient = createReadClient(cfg.chainId, cfg.rpcUrl);

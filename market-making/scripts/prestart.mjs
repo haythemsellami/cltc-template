@@ -22,16 +22,23 @@ const result = spawnSync("forge", ["build"], { cwd: contractsDir, stdio: "inheri
 if (result.status === 0 && !result.error) {
   process.exit(0);
 }
-if (existsSync(artifact)) {
-  console.warn(
-    "warning: `forge build` failed or Foundry is not installed — starting with the EXISTING venue " +
-      "artifact. Contract edits since your last successful build will NOT be picked up.",
+if (result.error) {
+  // forge isn't runnable at all (not installed / not on PATH / contracts dir missing).
+  if (existsSync(artifact)) {
+    console.warn(
+      "warning: Foundry (`forge`) is not available — starting with the EXISTING venue artifact. " +
+        "Contract edits since your last successful build will NOT be picked up.",
+    );
+    process.exit(0);
+  }
+  console.error(
+    "Foundry (`forge`) is not available and no venue artifact exists yet.\n" +
+      "Install it (https://book.getfoundry.sh/getting-started/installation), then:\n" +
+      "  cd ../contracts && forge build",
   );
-  process.exit(0);
+  process.exit(1);
 }
-console.error(
-  "`forge build` failed and no venue artifact exists yet.\n" +
-    "Install Foundry (https://book.getfoundry.sh/getting-started/installation), then:\n" +
-    "  cd ../contracts && forge build",
-);
+// forge ran and the build FAILED — the contract doesn't compile. Never start on the old bytecode:
+// the player is mid-edit and would silently deploy/reuse a venue WITHOUT their change.
+console.error("\n`forge build` failed (see the compiler errors above) — fix the contract, then `npm start` again.");
 process.exit(1);
